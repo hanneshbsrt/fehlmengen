@@ -25,13 +25,14 @@ def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
             # Nimmt die erste passende Bestellung (kann bei Bedarf angepasst werden)
             bestellung = passende_bestellungen.iloc
 
-            fehlmengen_df.loc[index, 'Ist Bestellt?'] = 'Ja'  # Oder ein anderer Wert Ihrer Wahl
-            fehlmengen_df.loc[index, 'Menge'] = bestellung['Menge']  # Hier wurde der Spaltenname korrigiert
-            fehlmengen_df.loc[index, 'Lieferdatum'] = bestellung['Lieferdatum']
+            # index.start verwenden, um den Integer-Index zu erhalten
+            fehlmengen_df.loc[index.start, 'Ist Bestellt?'] = 'Ja'  # Oder ein anderer Wert Ihrer Wahl
+            fehlmengen_df.loc[index.start, 'Menge'] = bestellung['Menge']  # Hier wurde der Spaltenname korrigiert
+            fehlmengen_df.loc[index.start, 'Lieferdatum'] = bestellung['Lieferdatum']
             # fehlmengen_df.loc[index, 'Lieferant'] = bestellung['Lieferant']  # Diese Spalte existiert nicht in der Excel-Datei
-            fehlmengen_df.loc[index, 'Bestellung'] = bestellung['Belegnr.']  # Hier wurde der Spaltenname korrigiert
+            fehlmengen_df.loc[index.start, 'Bestellung'] = bestellung['Belegnr.']  # Hier wurde der Spaltenname korrigiert
         else:
-            fehlmengen_df.loc[index, 'Ist Bestellt?'] = 'Nein'
+            fehlmengen_df.loc[index.start, 'Ist Bestellt?'] = 'Nein'
 
     return fehlmengen_df
 
