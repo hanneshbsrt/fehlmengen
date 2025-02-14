@@ -37,14 +37,14 @@ st.title('Datenzusammenführung')
 
 # Datei-Uploads
 fehlmengen_file = st.file_uploader('Fehlmengen-CSV hochladen', type='csv')
-bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type=['xls', 'xlsx'])  # Akzeptiert jetzt beide Formate
+bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type=['xlsx'])  # Akzeptiert jetzt nur.xlsx
 
 if fehlmengen_file and bestellungen_file:
     try:
         fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';')
 
-        # Engine 'xlrd' für.xls-Dateien verwenden
-        bestellungen_df = pd.read_excel(bestellungen_file, engine='xlrd')
+        # Engine 'openpyxl' für.xlsx-Dateien verwenden
+        bestellungen_df = pd.read_excel(bestellungen_file, engine='openpyxl')
 
         # Daten zusammenführen
         ergebnis_df = daten_zusammenfuehren(fehlmengen_df.copy(), bestellungen_df)  # Kopie, um Originaldaten nicht zu verändern
