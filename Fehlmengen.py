@@ -41,9 +41,10 @@ bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type
 
 if fehlmengen_file and bestellungen_file:
     try:
-        # Hier die Änderung: Semikolon als Trennzeichen angeben
-        fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';')  
-        bestellungen_df = pd.read_excel(bestellungen_file)
+        fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';')
+
+        # Engine 'xlrd' für.xls-Dateien verwenden
+        bestellungen_df = pd.read_excel(bestellungen_file, engine='xlrd')
 
         # Daten zusammenführen
         ergebnis_df = daten_zusammenfuehren(fehlmengen_df.copy(), bestellungen_df)  # Kopie, um Originaldaten nicht zu verändern
