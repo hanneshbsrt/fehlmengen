@@ -47,6 +47,12 @@ if fehlmengen_file and bestellungen_file:
         fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';')
         bestellungen_df = pd.read_excel(bestellungen_file, engine='openpyxl')
 
+        # DataFrames ausgeben
+        st.write("Fehlmengen DataFrame:")
+        st.write(fehlmengen_df)
+        st.write("Bestellungen DataFrame:")
+        st.write(bestellungen_df)
+
         # Daten zusammenführen
         ergebnis_df = daten_zusammenfuehren(fehlmengen_df.copy(), bestellungen_df)  # Kopie, um Originaldaten nicht zu verändern
 
