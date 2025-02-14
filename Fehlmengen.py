@@ -8,8 +8,9 @@ def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
     # Spaltennamen in bestellungen_df anpassen
     bestellungen_df = bestellungen_df.rename(columns={'Artikelnr.': 'Artikelnummer'})
 
-    for index, row in fehlmengen_df.iterrows():
-        artikelnummer = row['Artikelnummer']
+    # Schleife über die Indexnummern des fehlmengen_df
+    for i in range(len(fehlmengen_df)):
+        artikelnummer = fehlmengen_df.loc[i, 'Artikelnummer']
         if pd.isna(artikelnummer):  # Überspringe leere Zeilen
             continue
 
@@ -25,14 +26,14 @@ def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
             # Nimmt die erste passende Bestellung (kann bei Bedarf angepasst werden)
             bestellung = passende_bestellungen.iloc
 
-            # index direkt verwenden
-            fehlmengen_df.loc[index, 'Ist Bestellt?'] = 'Ja'  # Oder ein anderer Wert Ihrer Wahl
-            fehlmengen_df.loc[index, 'Menge'] = bestellung['Menge']  # Hier wurde der Spaltenname korrigiert
-            fehlmengen_df.loc[index, 'Lieferdatum'] = bestellung['Lieferdatum']
-            # fehlmengen_df.loc[index, 'Lieferant'] = bestellung['Lieferant']  # Diese Spalte existiert nicht in der Excel-Datei
-            fehlmengen_df.loc[index, 'Bestellung'] = bestellung['Belegnr.']  # Hier wurde der Spaltenname korrigiert
+            # i als Index verwenden
+            fehlmengen_df.loc[i, 'Ist Bestellt?'] = 'Ja'  # Oder ein anderer Wert Ihrer Wahl
+            fehlmengen_df.loc[i, 'Menge'] = bestellung['Menge']  # Hier wurde der Spaltenname korrigiert
+            fehlmengen_df.loc[i, 'Lieferdatum'] = bestellung['Lieferdatum']
+            # fehlmengen_df.loc[i, 'Lieferant'] = bestellung['Lieferant']  # Diese Spalte existiert nicht in der Excel-Datei
+            fehlmengen_df.loc[i, 'Bestellung'] = bestellung['Belegnr.']  # Hier wurde der Spaltenname korrigiert
         else:
-            fehlmengen_df.loc[index, 'Ist Bestellt?'] = 'Nein'
+            fehlmengen_df.loc[i, 'Ist Bestellt?'] = 'Nein'
 
     return fehlmengen_df
 
