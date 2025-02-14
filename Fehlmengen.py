@@ -5,7 +5,7 @@ import io
 def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
     """Fügt Daten aus der Bestellungs-Excel-Datei in die Fehlmengen-CSV-Datei ein."""
 
-    # Spaltenname in bestellungen_df anpassen
+    # Spaltennamen in bestellungen_df anpassen
     bestellungen_df = bestellungen_df.rename(columns={'Artikelnr.': 'Artikelnummer'})
 
     for index, row in fehlmengen_df.iterrows():
@@ -17,7 +17,7 @@ def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
         passende_bestellungen = bestellungen_df[
             (bestellungen_df['Artikelnummer'] == artikelnummer) &
             (bestellungen_df['Geliefert'] == 0) &
-            (bestellungen_df['Offen'] == bestellungen_df['Gesamtmenge']) &
+            (bestellungen_df['Offen'] == bestellungen_df['Offen']) &  # Hier wurde der Spaltenname korrigiert
             (bestellungen_df['Lieferdatum'] >= pd.Timestamp('today'))
         ]
 
@@ -26,10 +26,10 @@ def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
             bestellung = passende_bestellungen.iloc
 
             fehlmengen_df.loc[index, 'Ist Bestellt?'] = 'Ja'  # Oder ein anderer Wert Ihrer Wahl
-            fehlmengen_df.loc[index, 'Menge'] = bestellung['Bestellmenge']
+            fehlmengen_df.loc[index, 'Menge'] = bestellung['Menge']  # Hier wurde der Spaltenname korrigiert
             fehlmengen_df.loc[index, 'Lieferdatum'] = bestellung['Lieferdatum']
-            fehlmengen_df.loc[index, 'Lieferant'] = bestellung['Lieferant']
-            fehlmengen_df.loc[index, 'Bestellung'] = bestellung['Bestellnummer']
+            # fehlmengen_df.loc[index, 'Lieferant'] = bestellung['Lieferant']  # Diese Spalte existiert nicht in der Excel-Datei
+            fehlmengen_df.loc[index, 'Bestellung'] = bestellung['Belegnr.']  # Hier wurde der Spaltenname korrigiert
         else:
             fehlmengen_df.loc[index, 'Ist Bestellt?'] = 'Nein'
 
