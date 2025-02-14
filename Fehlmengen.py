@@ -44,8 +44,9 @@ bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type
 
 if fehlmengen_file and bestellungen_file:
     try:
-        fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';')
-        bestellungen_df = pd.read_excel(bestellungen_file, engine='openpyxl')
+        # Spaltennamen in Zeile 2 einlesen (0-basierter Index)
+        fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';', header=2)
+        bestellungen_df = pd.read_excel(bestellungen_file, engine='openpyxl', header=2)
 
         # DataFrames ausgeben
         st.write("Fehlmengen DataFrame:")
