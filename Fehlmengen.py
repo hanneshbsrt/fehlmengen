@@ -5,12 +5,15 @@ import io
 def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
     """Fügt Daten aus der Bestellungs-Excel-Datei in die Fehlmengen-CSV-Datei ein."""
 
+    # Spaltenname in bestellungen_df anpassen
+    bestellungen_df = bestellungen_df.rename(columns={'Artikelnr.': 'Artikelnummer'})
+
     for index, row in fehlmengen_df.iterrows():
         artikelnummer = row['Artikelnummer']
         if pd.isna(artikelnummer):  # Überspringe leere Zeilen
             continue
 
-        # Filtert die Bestellungen nach Artikelnummer und Bedingungen
+        # Filtert die Bestellungen nach Artikelnummer und Bedingungen (jetzt mit gleichem Spaltennamen)
         passende_bestellungen = bestellungen_df[
             (bestellungen_df['Artikelnummer'] == artikelnummer) &
             (bestellungen_df['Geliefert'] == 0) &
@@ -42,8 +45,6 @@ bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type
 if fehlmengen_file and bestellungen_file:
     try:
         fehlmengen_df = pd.read_csv(fehlmengen_file, sep=';')
-
-        # Engine 'openpyxl' für.xlsx-Dateien verwenden
         bestellungen_df = pd.read_excel(bestellungen_file, engine='openpyxl')
 
         # Daten zusammenführen
