@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 
 def daten_zusammenfuehren(fehlmengen_df, bestellungen_df):
     """Fügt Daten aus der Bestellungs-Excel-Datei in die Fehlmengen-CSV-Datei ein."""
@@ -36,12 +37,13 @@ st.title('Datenzusammenführung')
 
 # Datei-Uploads
 fehlmengen_file = st.file_uploader('Fehlmengen-CSV hochladen', type='csv')
-bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type='xlsx')
+bestellungen_file = st.file_uploader('Offene Bestellungen Excel hochladen', type=['xls', 'xlsx']) # Akzeptiert jetzt beide Formate
 
 if fehlmengen_file and bestellungen_file:
     try:
         fehlmengen_df = pd.read_csv(fehlmengen_file)
-        bestellungen_df = pd.read_excel(bestellungen_file)
+        # Hier die Änderung: Pandas versucht automatisch den richtigen Excel-Typ zu erkennen
+        bestellungen_df = pd.read_excel(bestellungen_file)  
 
         # Daten zusammenführen
         ergebnis_df = daten_zusammenfuehren(fehlmengen_df.copy(), bestellungen_df)  # Kopie, um Originaldaten nicht zu verändern
@@ -49,7 +51,17 @@ if fehlmengen_file and bestellungen_file:
         # Ergebnis anzeigen und Download-Link
         st.write('Ergebnis:')
         st.dataframe(ergebnis_df)
-        st.download_button('Download', data=ergebnis_df.to_csv(index=False), file_name='ergebnis.csv', mime='text/csv')
+
+        # Downloadlink als Bytes erstellen (unterstützt beide Dateitypen)
+        buffer = io.BytesIO()
+        ergebnis_df.to_csv(buffer, index=False)
+        st.download_button(
+            label="Download",
+            data=buffer,
+            file_name="ergebnis.csv",
+            mime="text/csv"
+        )
+
 
     except Exception as e:
         st.error(f'Ein Fehler ist aufgetreten: {e}')
