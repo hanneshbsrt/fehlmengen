@@ -18,6 +18,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     """
     Liest Excel-Dateien ein und verwendet Zeile 3 als Spaltenüberschrift.
     Die ersten zwei Zeilen der Excel-Datei werden ignoriert.
+    **Verwendet explizit 'xlrd' Engine für .xls Dateien.**
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
 
     Args:
@@ -35,10 +36,11 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
 
     if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel
         try:
-            df = pd.read_excel(uploaded_file, engine='openpyxl', header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
-            st.info(f"Excel-Datei erfolgreich gelesen (Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert
+            engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
+            df = pd.read_excel(uploaded_file, engine=engine, header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
+            st.info(f"Excel-Datei erfolgreich gelesen (Engine: '{engine}', Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert, Engine-Info hinzugefügt
         except Exception as e:
-            fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format oder Spaltenüberschrift nicht in Zeile 3." # Fehlermeldung angepasst
+            fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format oder Spaltenüberschrift nicht in Zeile 3. **Engine: '{engine}' wurde verwendet.**" # Fehlermeldung angepasst, Engine-Info hinzugefügt
     else:
         fehlermeldung = f"Unerwarteter Dateityp: {dateityp}.  Es werden nur Excel-Dateien für Bestände und offene Bestellungen erwartet." # Fehlermeldung für unerwarteten Dateityp
 
@@ -216,8 +218,8 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_excel_file = st.file_uploader("Bestände Excel-Datei hochladen (Excel, *.xlsx, *.xls, **Spaltenüberschrift in Zeile 3**)", type=["xlsx", "xls"]) # Hinweis auf Excel-Format und Zeile 3
-    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Excel-Datei hochladen (Excel, *.xlsx, *.xls, **Spaltenüberschrift in Zeile 3**)", type=["xlsx", "xls"]) # Hinweis auf Excel-Format und Zeile 3
+    bestaende_excel_file = st.file_uploader("Bestände Excel-Datei hochladen (Excel, *.xls, *.xlsx, **Spaltenüberschrift in Zeile 3**)", type=["xls", "xlsx"]) # Dateitypen auf .xls und .xlsx erweitert
+    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Excel-Datei hochladen (Excel, *.xls, *.xlsx, **Spaltenüberschrift in Zeile 3**)", type=["xls", "xlsx"]) # Dateitypen auf .xls und .xlsx erweitert
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
