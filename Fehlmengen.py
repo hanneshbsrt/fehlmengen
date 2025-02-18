@@ -17,14 +17,14 @@ import pandas.errors # Pandas Fehler-Modul importieren
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     """
     Versucht, Dateiformat zu erkennen und liest die Datei ein (Excel oder HTML-Tabelle).
-    Verwendet Zeile 3 als Spaltenüberschrift (falls Excel) oder erkennt Header automatisch (HTML).
-    Ignoriert die ersten zwei Zeilen (falls Excel).
+    **Excel-Dateien werden jetzt ohne Header eingelesen und Spaltennamen manuell zugewiesen (siehe artikel_stammdaten_lesen).**
+    Ignoriert die ersten zwei Zeilen (falls Excel). **(Anzahl der übersprungenen Zeilen konfigurierbar)**
     Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
     Erkennt und parst HTML-Tabellen in Dateien.
-    **Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).**
+    Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).
     Verbesserte HTML-Erkennung (prüft auf <html>, <!DOCTYPE html> und <TABLE>).
     Genauere Fehlermeldungen.
-    Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
+    **Spaltennamenanpassung erfolgt jetzt manuell im Code (für Excel). Für HTML wird Header automatisch erkannt.**
 
     Args:
         uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
@@ -85,10 +85,11 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
                     fehlermeldung = "**FEHLER beim HTML-Parsing:** HTML-Datei enthält keine Tabellen oder Tabellen konnten nicht geparst werden." # Genauere Fehlermeldung für HTML-Parsing-Fehler
             else: # Falls keine HTML-Datei, versuche Excel-Parsing
                 engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
-                df = pd.read_excel(uploaded_file, engine=engine, header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
-                st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert, Engine-Info hinzugefügt
+                df = pd.read_excel(uploaded_file, engine=engine, header=None, skiprows=2)  # Kein Header, überspringe 2 Zeilen (oder 3, je nach Bedarf, hier 2 beibehalten)
+                # df.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Geliefert', 'Offen', 'OffenBE']  # Spaltennamen werden jetzt in artikel_stammdaten_lesen zugewiesen!
+                st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', **keine Spaltenüberschriften aus Datei verwendet, manuelle Spaltenzuweisung im Code aktiv**).") # Info für Benutzer aktualisiert, Hinweis auf manuelle Spaltenzuweisung
         except Exception as e: # Allgemeine Fehler beim Parsing (HTML oder Excel)
-            fehlermeldung_parsing = f"**FEHLER beim Parsen der Datei (nach erfolgreichem Encoding):** {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder Spaltenüberschrift nicht in Zeile 3 (Excel). Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, Parsing-Fehler
+            fehlermeldung_parsing = f"**FEHLER beim Parsen der Datei (nach erfolgreichem Encoding):** {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder **unerwartetes Excel-Format**. Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, Hinweis auf unerwartetes Excel-Format
             if fehlermeldung: # Falls es schon einen Encoding-Fehler gab, diesen beibehalten, sonst Parsing-Fehler nehmen
                 fehlermeldung = fehlermeldung # Encoding-Fehler behalten
             else:
@@ -104,36 +105,27 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
         st.error(fehlermeldung)
         return None
 
-    if df is not None:
-        st.subheader(f"Vorschau der gelesenen Daten ({dateityp}, erste 5 Zeilen, **Spaltenüberschriften aus Datei extrahiert**):") # Dateityp und Hinweis auf Header-Quelle in Vorschau anzeigen
-        st.dataframe(df.head())
-
-        spaltennamen_neu = st.multiselect(
-            f"Spaltennamen überprüfen und ggf. anpassen ({dateityp}, wähle korrekte Spalten aus, **aus der Datei extrahiert**):", # Dateityp und Hinweis auf Header-Quelle im Label anzeigen
-            options=df.columns.tolist(),
-            default=df.columns.tolist(), # Standardmäßig alle Spalten auswählen
-            key=f"spaltenauswahl_{dateityp}_{uploaded_file.name}" # Eindeutiger Key für Multiselect
-        )
-
-        if spaltennamen_neu and len(spaltennamen_neu) == len(df.columns): # Sicherstellen, dass Spalten ausgewählt wurden und Anzahl stimmt
-            df.columns = spaltennamen_neu # Spaltennamen im DataFrame aktualisieren
-            st.success("Spaltennamen angepasst.")
-            return df
-        elif spaltennamen_neu:
-            st.warning("Bitte wähle die korrekte Anzahl an Spaltennamen aus, die der Anzahl der Spalten in der Datei entspricht.")
-            return None # DataFrame nicht zurückgeben, da Spaltenauswahl unvollständig
-        else:
-            st.warning("Es wurden keine Spaltennamen ausgewählt. Verwende Original-Spaltennamen.")
-            return df # DataFrame mit Original-Spaltennamen zurückgeben
-    else:
-        return None # Fehlerfall, kein DataFrame
+    return df # DataFrame ohne Spaltennamen zurückgeben (Spaltennamenanpassung erfolgt in artikel_stammdaten_lesen/offene_bestellungen_lesen)
 
 
 @st.cache_data
 def artikel_stammdaten_lesen(uploaded_file):
-    """Liest Artikelstammdaten aus Excel/HTML mit datei_inspektion_und_anpassung."""
-    df_bestand = datei_inspektion_und_anpassung(uploaded_file, 'bestaende_excel') # Dateityp angepasst
+    """Liest Artikelstammdaten aus Excel/HTML mit datei_inspektion_und_anpassung.
+    **Verwendet manuelle Spaltennamen für Excel-Dateien und prüft auf erforderliche Spalten.**
+    """
+    df_bestand = datei_inspektion_und_anpassung(uploaded_file, 'bestaende_excel')
     if df_bestand is None:
+        return None
+
+    # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
+    df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Spalte5', 'Spalte6', 'Spalte7'] # **Manuelle Spaltennamen zuweisen!**  Spaltennamen anpassen, falls nötig!
+
+    # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
+    required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
+    missing_columns = [col for col in required_columns if col not in df_bestand.columns]
+
+    if missing_columns:
+        st.error(f"**FEHLER: Fehlende Spalten nach manueller Spaltenzuweisung in Bestände-Datei:** {', '.join(missing_columns)}. \n\n**Mögliche Ursachen:** Unerwartetes Dateiformat, falsche Spaltenreihenfolge oder Anzahl an Spalten in der Datei. \n\n**Bitte überprüfe die Spaltenzuweisung im Code in der Funktion `artikel_stammdaten_lesen` und passe sie ggf. an die Datei an.**") # Erweiterte Fehlermeldung mit Hinweis auf Code-Anpassung
         return None
 
     artikel_stammdaten = {}
@@ -152,8 +144,17 @@ def artikel_stammdaten_lesen(uploaded_file):
 
 @st.cache_data
 def offene_bestellungen_lesen(uploaded_file):
-    """Liest offene Bestellungen aus Excel/HTML mit datei_inspektion_und_anpassung."""
-    return datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_excel') # Dateityp angepasst
+    """Liest offene Bestellungen aus Excel/HTML mit datei_inspektion_und_anpassung.
+     **Verwendet manuelle Spaltennamen für Excel-Dateien (ggf. anpassen!).**
+    """
+    df_offene_bestellungen = datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_excel')
+    if df_offene_bestellungen is None:
+        return None
+
+    # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in Datei)
+    df_offene_bestellungen.columns = ['Belegnr.', 'Datum', 'Kurzbezeichnung', 'Bearbeiter', 'Artikelnr.', 'Lieferdatum', 'ME', 'Menge', 'Geliefert', 'Offen', 'OffenBE'] # **Manuelle Spaltennamen zuweisen!** Spaltennamen ggf. anpassen!
+
+    return df_offene_bestellungen # DataFrame mit manuell zugewiesenen Spaltennamen zurückgeben
 
 
 def ist_bestellt(artikelnummer, offene_bestellungen_df):
@@ -274,8 +275,8 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_excel_file = st.file_uploader("Bestände Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Spaltenüberschrift in Zeile 3 falls Excel, Header wird automatisch erkannt falls HTML**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert
-    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Spaltenüberschrift in Zeile 3 falls Excel, Header wird automatisch erkannt falls HTML**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert
+    bestaende_excel_file = st.file_uploader("Bestände Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
+    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
