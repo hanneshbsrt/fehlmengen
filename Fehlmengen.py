@@ -129,7 +129,7 @@ def artikel_stammdaten_lesen(uploaded_file):
         # **tatsächlichen Spaltenüberschriften** der HTML-Tabelle an.
         # Die hier angegebenen Spaltennamen sind nur ein Beispiel und MÜSSEN möglicherweise angepasst werden!
 
-        df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Spalte5', 'Spalte6', 'Spalte7'] # **Manuelle Spaltennamen zuweisen!**  Spaltennamen anpassen, falls nötig!
+        df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME'] # **Reduzierte Spaltennamen (testweise)!**
 
 
         # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
