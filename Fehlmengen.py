@@ -17,7 +17,7 @@ import pandas.errors # Pandas Fehler-Modul importieren
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     """
     Versucht, Dateiformat und Kodierung zu erkennen und liest die Datei ein.
-    **Nutzt Komma als Trennzeichen für CSV-Dateien und UTF-8 Encoding.**
+    **Nutzt Semikolon als Trennzeichen für CSV-Dateien und UTF-8 Encoding.**
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
     Verbesserte Fehlerbehandlung für CSV-Parsing-Fehler.
 
@@ -44,20 +44,20 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
         for encoding in versuchte_encodings:
             try:
                 csv_string_data = io.StringIO(uploaded_file.getvalue().decode(encoding))
-                df = pd.read_csv(csv_string_data, encoding=encoding, sep=',') # KOMMA als Trennzeichen festgelegt!
-                st.info(f"CSV-Datei erfolgreich mit Encoding '{encoding}' und Komma-Trennzeichen gelesen (sep=, am Dateianfang wird **NICHT** berücksichtigt).") # Info für Benutzer aktualisiert und Hinweis zu sep= entfernt
+                df = pd.read_csv(csv_string_data, encoding=encoding, sep=';') # SEMIKOLON als Trennzeichen festgelegt!
+                st.info(f"CSV-Datei erfolgreich mit Encoding '{encoding}' und Semikolon-Trennzeichen gelesen (sep=; am Dateianfang wird berücksichtigt).") # Info für Benutzer aktualisiert
                 break # Erfolgreiches Encoding gefunden, Schleife beenden
             except UnicodeDecodeError:
                 continue # Nächstes Encoding versuchen (eigentlich nicht mehr nötig, da nur UTF-8 versucht wird)
             except pd.errors.ParserError as e: # Spezifischen ParserError abfangen!
-                fehlermeldung = f"**Fehler beim Einlesen der CSV-Datei (Strukturproblem):** {e}. \n\n**Mögliche Ursachen:** Inkonsistente Trennzeichen (Komma?), fehlerhafte Zeilen in der CSV-Datei. **Bitte überprüfe die Datei manuell, besonders Zeile 5!**" # Hilfreichere Fehlermeldung, Komma erwähnt
+                fehlermeldung = f"**Fehler beim Einlesen der CSV-Datei (Strukturproblem):** {e}. \n\n**Mögliche Ursachen:** Inkonsistente Trennzeichen (Semikolon?), fehlerhafte Zeilen in der CSV-Datei. **Bitte überprüfe die Datei manuell, besonders Zeile 5!**" # Hilfreichere Fehlermeldung, Semikolon erwähnt
                 break # ParserError, Abbruch
             except Exception as e: # Andere Fehler
-                fehlermeldung = f"Unerwarteter Fehler beim Lesen der CSV-Datei (Encoding '{encoding}', Komma-Trennzeichen): {e}" # Fehlermeldung aktualisiert, Komma erwähnt
+                fehlermeldung = f"Unerwarteter Fehler beim Lesen der CSV-Datei (Encoding '{encoding}', Semikolon-Trennzeichen): {e}" # Fehlermeldung aktualisiert, Semikolon erwähnt
                 break # Schwerwiegender Fehler, Schleife abbrechen
 
         if df is None and fehlermeldung is None:
-            fehlermeldung = "CSV-Datei konnte nicht mit UTF-8 Encoding und Komma-Trennzeichen gelesen werden. Möglicherweise ist die Datei beschädigt oder hat ein ungewöhnliches Format." # Fehlermeldung aktualisiert, Komma erwähnt
+            fehlermeldung = "CSV-Datei konnte nicht mit UTF-8 Encoding und Semikolon-Trennzeichen gelesen werden. Möglicherweise ist die Datei beschädigt oder hat ein ungewöhnliches Format." # Fehlermeldung aktualisiert, Semikolon erwähnt
 
     if fehlermeldung:
         st.error(fehlermeldung)
@@ -150,7 +150,7 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
             lieferdatum_roh = bestell_zeile['Lieferdatum']
             lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""
             bearbeiter = bestell_zeile['Bearbeiter']
-            belegnummer = bestell_zeile['Belegnr.']
+            belegnummer = bestellung_zeile['Belegnr.']
             ist_bestellt_text = "ja"
         else:
             ist_bestellt_text = "nein"
@@ -233,8 +233,8 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_csv_file = st.file_uploader("Bestände CSV-Datei hochladen (CSV, Komma-getrennt, UTF-8)", type=["csv"]) # Hinweis zu Komma und UTF-8 hinzugefügt, sep=; Hinweis entfernt
-    offene_bestellungen_csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen (CSV, Komma-getrennt, UTF-8)", type=["csv"]) # Hinweis zu Komma und UTF-8 hinzugefügt, sep=; Hinweis entfernt
+    bestaende_csv_file = st.file_uploader("Bestände CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8, beginnt mit 'sep=;')", type=["csv"]) # Hinweis zu Semikolon und sep=; wieder hinzugefügt
+    offene_bestellungen_csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8, beginnt mit 'sep=;')", type=["csv"]) # Hinweis zu Semikolon und sep=; wieder hinzugefügt
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
