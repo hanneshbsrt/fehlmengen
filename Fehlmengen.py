@@ -16,14 +16,13 @@ import pandas.errors # Pandas Fehler-Modul importieren
 @st.cache_data
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     """
-    Versucht, Dateiformat und Kodierung zu erkennen und liest die Datei ein.
-    **Nutzt Semikolon als Trennzeichen für CSV-Dateien und UTF-8 Encoding.**
+    Liest Excel-Dateien ein und verwendet Zeile 3 als Spaltenüberschrift.
+    Die ersten zwei Zeilen der Excel-Datei werden ignoriert.
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
-    Verbesserte Fehlerbehandlung für CSV-Parsing-Fehler.
 
     Args:
         uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
-        dateityp (str): Dateityp ('bestaende_csv' oder 'offene_bestellungen_csv').
+        dateityp (str): Dateityp ('bestaende_excel' oder 'offene_bestellungen_excel').
 
     Returns:
         pandas.DataFrame: DataFrame der eingelesenen Daten oder None bei Fehler.
@@ -34,41 +33,25 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     df = None
     fehlermeldung = None
 
-    if dateityp == 'excel': # Excel-Pfad entfernt, da nicht mehr verwendet für Bestände
+    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel
         try:
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            df = pd.read_excel(uploaded_file, engine='openpyxl', header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
+            st.info(f"Excel-Datei erfolgreich gelesen (Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert
         except Exception as e:
-            fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}" # Fehlermeldung angepasst, obwohl Excel nicht mehr erwartet wird
-    elif dateityp == 'bestaende_csv' or dateityp == 'offene_bestellungen_csv': # Dateityp-Optionen erweitert
-        versuchte_encodings = ['utf-8'] # UTF-8 ist jetzt die Standard-Kodierung
-        for encoding in versuchte_encodings:
-            try:
-                csv_string_data = io.StringIO(uploaded_file.getvalue().decode(encoding))
-                df = pd.read_csv(csv_string_data, encoding=encoding, sep=';') # SEMIKOLON als Trennzeichen festgelegt!
-                st.info(f"CSV-Datei erfolgreich mit Encoding '{encoding}' und Semikolon-Trennzeichen gelesen (sep=; am Dateianfang wird berücksichtigt).") # Info für Benutzer aktualisiert
-                break # Erfolgreiches Encoding gefunden, Schleife beenden
-            except UnicodeDecodeError:
-                continue # Nächstes Encoding versuchen (eigentlich nicht mehr nötig, da nur UTF-8 versucht wird)
-            except pd.errors.ParserError as e: # Spezifischen ParserError abfangen!
-                fehlermeldung = f"**Fehler beim Einlesen der CSV-Datei (Strukturproblem):** {e}. \n\n**Mögliche Ursachen:** Inkonsistente Trennzeichen (Semikolon?), fehlerhafte Zeilen in der CSV-Datei. **Bitte überprüfe die Datei manuell, besonders Zeile 5!**" # Hilfreichere Fehlermeldung, Semikolon erwähnt
-                break # ParserError, Abbruch
-            except Exception as e: # Andere Fehler
-                fehlermeldung = f"Unerwarteter Fehler beim Lesen der CSV-Datei (Encoding '{encoding}', Semikolon-Trennzeichen): {e}" # Fehlermeldung aktualisiert, Semikolon erwähnt
-                break # Schwerwiegender Fehler, Schleife abbrechen
-
-        if df is None and fehlermeldung is None:
-            fehlermeldung = "CSV-Datei konnte nicht mit UTF-8 Encoding und Semikolon-Trennzeichen gelesen werden. Möglicherweise ist die Datei beschädigt oder hat ein ungewöhnliches Format." # Fehlermeldung aktualisiert, Semikolon erwähnt
+            fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format oder Spaltenüberschrift nicht in Zeile 3." # Fehlermeldung angepasst
+    else:
+        fehlermeldung = f"Unerwarteter Dateityp: {dateityp}.  Es werden nur Excel-Dateien für Bestände und offene Bestellungen erwartet." # Fehlermeldung für unerwarteten Dateityp
 
     if fehlermeldung:
         st.error(fehlermeldung)
         return None
 
     if df is not None:
-        st.subheader(f"Vorschau der gelesenen Daten ({dateityp}, erste 5 Zeilen):") # Dateityp in Vorschau anzeigen
+        st.subheader(f"Vorschau der gelesenen Daten ({dateityp}, erste 5 Zeilen, **Spaltenüberschriften aus Zeile 3**):") # Dateityp und Hinweis auf Zeile 3 in Vorschau anzeigen
         st.dataframe(df.head())
 
         spaltennamen_neu = st.multiselect(
-            f"Spaltennamen überprüfen und ggf. anpassen ({dateityp}, wähle korrekte Spalten aus):", # Dateityp im Label anzeigen
+            f"Spaltennamen überprüfen und ggf. anpassen ({dateityp}, wähle korrekte Spalten aus, **aus Zeile 3 der Excel-Datei**):", # Dateityp und Hinweis auf Zeile 3 im Label anzeigen
             options=df.columns.tolist(),
             default=df.columns.tolist(), # Standardmäßig alle Spalten auswählen
             key=f"spaltenauswahl_{dateityp}_{uploaded_file.name}" # Eindeutiger Key für Multiselect
@@ -90,8 +73,8 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
 
 @st.cache_data
 def artikel_stammdaten_lesen(uploaded_file):
-    """Liest Artikelstammdaten aus CSV mit datei_inspektion_und_anpassung."""
-    df_bestand = datei_inspektion_und_anpassung(uploaded_file, 'bestaende_csv')
+    """Liest Artikelstammdaten aus Excel mit datei_inspektion_und_anpassung."""
+    df_bestand = datei_inspektion_und_anpassung(uploaded_file, 'bestaende_excel') # Dateityp angepasst
     if df_bestand is None:
         return None
 
@@ -111,8 +94,8 @@ def artikel_stammdaten_lesen(uploaded_file):
 
 @st.cache_data
 def offene_bestellungen_lesen(uploaded_file):
-    """Liest offene Bestellungen aus CSV mit datei_inspektion_und_anpassung."""
-    return datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_csv')
+    """Liest offene Bestellungen aus Excel mit datei_inspektion_und_anpassung."""
+    return datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_excel') # Dateityp angepasst
 
 
 def ist_bestellt(artikelnummer, offene_bestellungen_df):
@@ -150,7 +133,7 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
             lieferdatum_roh = bestell_zeile['Lieferdatum']
             lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""
             bearbeiter = bestell_zeile['Bearbeiter']
-            belegnummer = bestellung_zeile['Belegnr.']
+            belegnummer = bestell_zeile['Belegnr.']
             ist_bestellt_text = "ja"
         else:
             ist_bestellt_text = "nein"
@@ -233,17 +216,17 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_csv_file = st.file_uploader("Bestände CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8, beginnt mit 'sep=;')", type=["csv"]) # Hinweis zu Semikolon und sep=; wieder hinzugefügt
-    offene_bestellungen_csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8, beginnt mit 'sep=;')", type=["csv"]) # Hinweis zu Semikolon und sep=; wieder hinzugefügt
+    bestaende_excel_file = st.file_uploader("Bestände Excel-Datei hochladen (Excel, *.xlsx, *.xls, **Spaltenüberschrift in Zeile 3**)", type=["xlsx", "xls"]) # Hinweis auf Excel-Format und Zeile 3
+    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Excel-Datei hochladen (Excel, *.xlsx, *.xls, **Spaltenüberschrift in Zeile 3**)", type=["xlsx", "xls"]) # Hinweis auf Excel-Format und Zeile 3
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
 
-    if bestaende_csv_file:
-        artikel_stammdaten = artikel_stammdaten_lesen(bestaende_csv_file) # Nutze bestaende_csv_file
+    if bestaende_excel_file:
+        artikel_stammdaten = artikel_stammdaten_lesen(bestaende_excel_file) # Nutze bestaende_excel_file
 
-    if offene_bestellungen_csv_file:
-        offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_csv_file) # Nutze offene_bestellungen_csv_file
+    if offene_bestellungen_excel_file:
+        offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_excel_file) # Nutze offene_bestellungen_excel_file
 
 
     if artikel_stammdaten and offene_bestellungen_df is not None and artikelnummern_etiketten:
@@ -263,13 +246,13 @@ def main():
             file_name="lager_bestand_liste.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-    elif artikelnummern_etiketten or bestaende_csv_file or offene_bestellungen_csv_file: # Warnungen angepasst
+    elif artikelnummern_etiketten or bestaende_excel_file or offene_bestellungen_excel_file: # Warnungen angepasst
         if not artikelnummern_etiketten and uploaded_image_files:
             st.warning("Bitte validiere oder gib die Artikelnummern aus den Etikettenbildern ein, bevor du die Dateien hochlädst.")
-        if not bestaende_csv_file:
-            st.warning("Bitte lade die Bestände CSV-Datei hoch.") # Warnung für Bestände CSV
-        if not offene_bestellungen_csv_file:
-            st.warning("Bitte lade die Offene Bestellungen CSV-Datei hoch.") # Warnung für Offene Bestellungen CSV
+        if not bestaende_excel_file:
+            st.warning("Bitte lade die Bestände Excel-Datei hoch.") # Warnung für Bestände Excel
+        if not offene_bestellungen_excel_file:
+            st.warning("Bitte lade die Offene Bestellungen Excel-Datei hoch.") # Warnung für Offene Bestellungen Excel
 
 
 if __name__ == "__main__":
