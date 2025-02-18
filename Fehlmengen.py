@@ -4,85 +4,112 @@ import openpyxl
 import pytesseract
 from PIL import Image
 import re
-import io  # Für In-Memory-Dateioperationen mit Streamlit
+import io
 from google.cloud import vision
 from google.oauth2 import service_account
 
-# Pfad zu Tesseract OCR Engine (ggf. anpassen, falls nicht im Systempfad)
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe' # Beispielpfad Windows
+# ... (Tesseract Pfad - optional) ...
 
 
-@st.cache_data  # Cache die Funktion, um wiederholtes Einlesen zu vermeiden
+@st.cache_data
+def datei_inspektion_und_anpassung(uploaded_file, dateityp):
+    """
+    Versucht, Dateiformat und Kodierung zu erkennen und liest die Datei ein.
+    Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
+
+    Args:
+        uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
+        dateityp (str): Dateityp ('bestaende_csv' oder 'offene_bestellungen_csv').
+
+    Returns:
+        pandas.DataFrame: DataFrame der eingelesenen Daten oder None bei Fehler.
+    """
+    if uploaded_file is None:
+        return None
+
+    df = None
+    fehlermeldung = None
+
+    if dateityp == 'excel': # Excel-Pfad entfernt, da nicht mehr verwendet für Bestände
+        try:
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+        except Exception as e:
+            fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}" # Fehlermeldung angepasst, obwohl Excel nicht mehr erwartet wird
+    elif dateityp == 'bestaende_csv' or dateityp == 'offene_bestellungen_csv': # Dateityp-Optionen erweitert
+        versuchte_encodings = ['utf-8', 'latin-1', 'cp1252', 'ISO-8859-1'] # Häufige Encodings
+        for encoding in versuchte_encodings:
+            try:
+                csv_string_data = io.StringIO(uploaded_file.getvalue().decode(encoding))
+                df = pd.read_csv(csv_string_data, encoding=encoding)
+                st.info(f"CSV-Datei erfolgreich mit Encoding '{encoding}' gelesen.") # Info für Benutzer
+                break # Erfolgreiches Encoding gefunden, Schleife beenden
+            except UnicodeDecodeError:
+                continue # Nächstes Encoding versuchen
+            except Exception as e:
+                fehlermeldung = f"Fehler beim Lesen der CSV-Datei (Encoding '{encoding}'): {e}"
+                break # Schwerwiegender Fehler, Schleife abbrechen
+        if df is None and fehlermeldung is None:
+            fehlermeldung = "CSV-Datei konnte mit keinen der üblichen Encodings gelesen werden. Möglicherweise ist die Datei beschädigt oder hat ein ungewöhnliches Format."
+
+    if fehlermeldung:
+        st.error(fehlermeldung)
+        return None
+
+    if df is not None:
+        st.subheader(f"Vorschau der gelesenen Daten ({dateityp}, erste 5 Zeilen):") # Dateityp in Vorschau anzeigen
+        st.dataframe(df.head())
+
+        spaltennamen_neu = st.multiselect(
+            f"Spaltennamen überprüfen und ggf. anpassen ({dateityp}, wähle korrekte Spalten aus):", # Dateityp im Label anzeigen
+            options=df.columns.tolist(),
+            default=df.columns.tolist(), # Standardmäßig alle Spalten auswählen
+            key=f"spaltenauswahl_{dateityp}_{uploaded_file.name}" # Eindeutiger Key für Multiselect
+        )
+
+        if spaltennamen_neu and len(spaltennamen_neu) == len(df.columns): # Sicherstellen, dass Spalten ausgewählt wurden und Anzahl stimmt
+            df.columns = spaltennamen_neu # Spaltennamen im DataFrame aktualisieren
+            st.success("Spaltennamen angepasst.")
+            return df
+        elif spaltennamen_neu:
+            st.warning("Bitte wähle die korrekte Anzahl an Spaltennamen aus, die der Anzahl der Spalten in der Datei entspricht.")
+            return None # DataFrame nicht zurückgeben, da Spaltenauswahl unvollständig
+        else:
+            st.warning("Es wurden keine Spaltennamen ausgewählt. Verwende Original-Spaltennamen.")
+            return df # DataFrame mit Original-Spaltennamen zurückgeben
+    else:
+        return None # Fehlerfall, kein DataFrame
+
+
+@st.cache_data
 def artikel_stammdaten_lesen(uploaded_file):
-    """
-    Liest Artikelstammdaten aus einer hochgeladenen Excel-Datei.
-
-    Args:
-        uploaded_file (streamlit.UploadedFile): Hochgeladene Excel-Datei.
-
-    Returns:
-        dict: Dictionary mit Artikelstammdaten, Schlüssel ist Artikelnummer.
-              Oder None bei Fehler.
-    """
-    if uploaded_file is None:
+    """Liest Artikelstammdaten aus CSV mit datei_inspektion_und_anpassung."""
+    df_bestand = datei_inspektion_und_anpassung(uploaded_file, 'bestaende_csv')
+    if df_bestand is None:
         return None
 
-    try:
-        df = pd.read_excel(uploaded_file)
-        artikel_stammdaten = {}
-        for index, row in df.iterrows():
-            artikelnummer = str(row['Artikelnummer'])  # Sicherstellen, dass Artikelnummer als String behandelt wird
-            artikel_name = row['Artikelname']
-            bestand_menge = str(row['Bestand Menge'])  # Als String behandeln, da es mit Einheit kombiniert wird
-            bestand_einheit = row['Bestand Einheit']
-            bestand_gesamt = f"{bestand_menge} {bestand_einheit}"
-            artikel_stammdaten[artikelnummer] = {
-                "name": artikel_name,
-                "bestand": bestand_gesamt
-            }
-        return artikel_stammdaten
-    except Exception as e:
-        st.error(f"Fehler beim Lesen der Artikelstammdaten-Datei: {e}")
-        return None
+    artikel_stammdaten = {}
+    for index, row in df_bestand.iterrows():
+        artikelnummer = str(row['Artikel']) # Spaltenname 'Artikel'
+        artikel_name = row['Kurzbezeichnung'] # Spaltenname 'Kurzbezeichnung'
+        bestand_menge = str(row['Bestand']) # Spaltenname 'Bestand'
+        bestand_einheit = row['ME'] # Spaltenname 'ME'
+        bestand_gesamt = f"{bestand_menge} {bestand_einheit}"
+        artikel_stammdaten[artikelnummer] = {
+            "name": artikel_name,
+            "bestand": bestand_gesamt
+        }
+    return artikel_stammdaten
 
-@st.cache_data  # Cache die Funktion, um wiederholtes Einlesen zu vermeiden
+
+@st.cache_data
 def offene_bestellungen_lesen(uploaded_file):
-    """
-    Liest offene Bestellungen aus einer hochgeladenen CSV-Datei.
+    """Liest offene Bestellungen aus CSV mit datei_inspektion_und_anpassung."""
+    return datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_csv')
 
-    Args:
-        uploaded_file (streamlit.UploadedFile): Hochgeladene CSV-Datei.
-
-    Returns:
-        pandas.DataFrame: DataFrame mit offenen Bestellungen.
-                         Oder None bei Fehler.
-    """
-    if uploaded_file is None:
-        return None
-    try:
-        # Verwende io.StringIO, um direkt aus dem UploadedFile-Objekt zu lesen
-        csv_string_data = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
-        df = pd.read_csv(csv_string_data, encoding='utf-8')
-        # Konvertiere 'Geliefert' Spalte zu numerisch, Fehler werden zu NaN
-        df['Geliefert'] = pd.to_numeric(df['Geliefert'], errors='coerce').fillna(0)
-        return df
-    except Exception as e:
-        st.error(f"Fehler beim Lesen der Datei mit offenen Bestellungen: {e}")
-        return None
 
 def ist_bestellt(artikelnummer, offene_bestellungen_df):
-    """
-    Prüft, ob ein Artikel bestellt ist (alle Artikel einer Bestellung 'Geliefert' = 0).
-
-    Args:
-        artikelnummer (str): Artikelnummer.
-        offene_bestellungen_df (pandas.DataFrame): DataFrame mit offenen Bestellungen.
-
-    Returns:
-        tuple: (bool, pandas.DataFrame or None) - True, Bestellung DataFrame wenn bestellt,
-               False, None wenn nicht bestellt oder Fehler.
-    """
-    bestellungen_artikel = offene_bestellungen_df[offene_bestellungen_df['Artikelnummer'] == artikelnummer]
+    """... (Funktion ist_bestellt - Spaltennamen anpassen!) ..."""
+    bestellungen_artikel = offene_bestellungen_df[offene_bestellungen_df['Artikelnr.'] == artikelnummer] # Spaltenname 'Artikelnr.'
     if bestellungen_artikel.empty:
         return False, None
 
@@ -91,22 +118,12 @@ def ist_bestellt(artikelnummer, offene_bestellungen_df):
         bestellung_df = offene_bestellungen_df[offene_bestellungen_df['Belegnr.'] == belegnummer]
         alle_geliefert_null = (bestellung_df['Geliefert'] == 0).all()
         if alle_geliefert_null:
-            return True, bestellung_df  # Rückgabe der passenden Bestellung
+            return True, bestellung_df
 
     return False, None
 
 def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellungen_df):
-    """
-    Erstellt die Pandas DataFrame für die Excel-Ausgabetabelle.
-
-    Args:
-        artikelnummern (list): Liste der Artikelnummern.
-        artikel_stammdaten (dict): Dictionary mit Artikelstammdaten.
-        offene_bestellungen_df (pandas.DataFrame): DataFrame mit offenen Bestellungen.
-
-    Returns:
-        pandas.DataFrame: DataFrame für die Ausgabetabelle.
-    """
+    """... (Funktion excel_tabelle_erstellen - Spaltennamen anpassen!) ..."""
     ausgabe_daten = []
     for artikelnummer in artikelnummern:
         stammdaten = artikel_stammdaten.get(artikelnummer)
@@ -123,7 +140,7 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
             bestell_zeile = bestellung_daten.iloc[0]
             menge = bestell_zeile['Menge']
             lieferdatum_roh = bestell_zeile['Lieferdatum']
-            lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""  # Formatierung und Fehlerbehandlung
+            lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""
             bearbeiter = bestell_zeile['Bearbeiter']
             belegnummer = bestellung_zeile['Belegnr.']
             ist_bestellt_text = "ja"
@@ -145,20 +162,11 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
 
 
 def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
-    """
-    Erkennt Artikelnummern aus hochgeladenen Bildern mit Google Cloud Vision API und Benutzerinteraktion.
-
-    Args:
-        uploaded_files (list): Liste von Streamlit UploadedFile-Objekten (Bilder).
-
-    Returns:
-        list: Liste der erkannten und validierten Artikelnummern.
-    """
+    """... (Funktion artikelnummern_aus_bildern_erkennen_gcv - unverändert) ..."""
     artikelnummern = []
     artikelnummer_muster = re.compile(r"A\d{5}")  # Dein Artikelnummernmuster
 
-    # Google Cloud Vision API Client initialisieren, Anmeldeinformationen aus Streamlit Secrets laden
-    credentials = service_account.Credentials.from_service_account_info(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]) # "GOOGLE_APPLICATION_CREDENTIALS" ist der Secret-Name in Streamlit Cloud
+    credentials = service_account.Credentials.from_service_account_info(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"])
     client = vision.ImageAnnotatorClient(credentials=credentials)
 
     for uploaded_file in uploaded_files:
@@ -166,12 +174,9 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
             img = Image.open(uploaded_file)
             st.image(img, caption=f"Etikettenbild: {uploaded_file.name}", width=300)
 
-            # Bilddaten für die Vision API vorbereiten
-            image = vision.Image(content=uploaded_file.getvalue()) # Bilddaten direkt aus UploadedFile
-
-            # Texterkennung mit Google Cloud Vision API
+            image = vision.Image(content=uploaded_file.getvalue())
             response = client.text_detection(image=image)
-            erkannter_text = response.text_annotations[0].description if response.text_annotations else "" # Erkannten Text extrahieren
+            erkannter_text = response.text_annotations[0].description if response.text_annotations else ""
 
             st.write(f"Erkannter Text (Google Cloud Vision API):\n```\n{erkannter_text}\n```")
 
@@ -191,10 +196,9 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
                 if manuelle_eingabe:
                     artikelnummern.append(manuelle_eingabe)
 
-
         except Exception as e:
             st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Google Cloud Vision API: {e}")
-            st.error(f"Fehlerdetails: {e}") # Zeige detailliertere Fehlermeldung an
+            st.error(f"Fehlerdetails: {e}")
             manuelle_eingabe = st.text_input(f"Artikelnummer für **{uploaded_file.name}** manuell eingeben (Fehlerfall):", key=f"manual_input_error_{uploaded_file.name}")
             if manuelle_eingabe:
                 artikelnummern.append(manuelle_eingabe)
@@ -210,7 +214,7 @@ def main():
 
     artikelnummern_etiketten = []
     if uploaded_image_files:
-        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_gcv(uploaded_image_files) # Verwende die Google Cloud Vision Funktion!
+        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_gcv(uploaded_image_files)
 
         if artikelnummern_etiketten:
             st.success("Artikelnummernerkennung abgeschlossen (Google Cloud Vision API verwendet)!")
@@ -221,40 +225,43 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    excel_file = st.file_uploader("Artikelstammdaten Excel-Datei hochladen", type=["xlsx", "xls"])
-    csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen", type=["csv"])
+    bestaende_csv_file = st.file_uploader("Bestände CSV-Datei hochladen", type=["csv"]) # Beschriftung für Bestände CSV
+    offene_bestellungen_csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen", type=["csv"]) # Beschriftung für Offene Bestellungen CSV
 
-    if excel_file and csv_file and artikelnummern_etiketten:
-        artikel_stammdaten = artikel_stammdaten_lesen(excel_file)
-        offene_bestellungen_df = offene_bestellungen_lesen(csv_file)
+    artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
+    offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
 
-        if artikel_stammdaten and offene_bestellungen_df is not None:
-            ausgabe_df = excel_tabelle_erstellen(artikelnummern_etiketten, artikel_stammdaten, offene_bestellungen_df)
+    if bestaende_csv_file:
+        artikel_stammdaten = artikel_stammdaten_lesen(bestaende_csv_file) # Nutze bestaende_csv_file
 
-            st.header("3. Ergebnis-Tabelle")
-            st.dataframe(ausgabe_df)
+    if offene_bestellungen_csv_file:
+        offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_csv_file) # Nutze offene_bestellungen_csv_file
 
-            # Download Button für Excel
-            output_excel_file = io.BytesIO()
-            with pd.ExcelWriter(output_excel_file, engine='openpyxl') as writer:
-                ausgabe_df.to_excel(writer, index=False, sheet_name='Lagerbestand')
-            output_excel_file.seek(0)
 
-            st.download_button(
-                label="Excel-Tabelle herunterladen",
-                data=output_excel_file,
-                file_name="lager_bestand_liste.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.error("Fehler beim Verarbeiten der Dateien. Bitte überprüfe die Dateien und lade sie erneut hoch.")
-    elif excel_file or csv_file or artikelnummern_etiketten:
+    if artikel_stammdaten and offene_bestellungen_df is not None and artikelnummern_etiketten:
+        ausgabe_df = excel_tabelle_erstellen(artikelnummern_etiketten, artikel_stammdaten, offene_bestellungen_df)
+
+        st.header("3. Ergebnis-Tabelle")
+        st.dataframe(ausgabe_df)
+
+        output_excel_file = io.BytesIO()
+        with pd.ExcelWriter(output_excel_file, engine='openpyxl') as writer:
+            ausgabe_df.to_excel(writer, index=False, sheet_name='Lagerbestand')
+        output_excel_file.seek(0)
+
+        st.download_button(
+            label="Excel-Tabelle herunterladen",
+            data=output_excel_file,
+            file_name="lager_bestand_liste.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    elif artikelnummern_etiketten or bestaende_csv_file or offene_bestellungen_csv_file: # Warnungen angepasst
         if not artikelnummern_etiketten and uploaded_image_files:
             st.warning("Bitte validiere oder gib die Artikelnummern aus den Etikettenbildern ein, bevor du die Dateien hochlädst.")
-        elif not excel_file:
-            st.warning("Bitte lade die Artikelstammdaten Excel-Datei hoch.")
-        elif not csv_file:
-            st.warning("Bitte lade die Offene Bestellungen CSV-Datei hoch.")
+        if not bestaende_csv_file:
+            st.warning("Bitte lade die Bestände CSV-Datei hoch.") # Warnung für Bestände CSV
+        if not offene_bestellungen_csv_file:
+            st.warning("Bitte lade die Offene Bestellungen CSV-Datei hoch.") # Warnung für Offene Bestellungen CSV
 
 
 if __name__ == "__main__":
