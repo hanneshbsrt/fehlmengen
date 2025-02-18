@@ -16,9 +16,11 @@ import pandas.errors # Pandas Fehler-Modul importieren
 @st.cache_data
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     """
-    Liest Excel-Dateien ein und verwendet Zeile 3 als Spaltenüberschrift.
-    Die ersten zwei Zeilen der Excel-Datei werden ignoriert.
-    **Verwendet explizit 'xlrd' Engine für .xls Dateien.**
+    Versucht, Dateiformat zu erkennen und liest die Datei ein (Excel oder HTML-Tabelle).
+    Verwendet Zeile 3 als Spaltenüberschrift (falls Excel) oder erkennt Header automatisch (HTML).
+    Ignoriert die ersten zwei Zeilen (falls Excel).
+    Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
+    **Erkennt und parst HTML-Tabellen in Dateien.**
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
 
     Args:
@@ -34,26 +36,36 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     df = None
     fehlermeldung = None
 
-    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel
+    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel/HTML
         try:
-            engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
-            df = pd.read_excel(uploaded_file, engine=engine, header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
-            st.info(f"Excel-Datei erfolgreich gelesen (Engine: '{engine}', Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert, Engine-Info hinzugefügt
+            datei_inhalt_string = uploaded_file.getvalue().decode('utf-8') # Dateiinhalt als String lesen (UTF-8 Annahme)
+            if "<TABLE" in datei_inhalt_string.upper() and "<TR>" in datei_inhalt_string.upper() and "<TD>" in datei_inhalt_string.upper(): # HTML-Tabelle erkennen (vereinfacht)
+                st.info("Datei als HTML-Tabelle erkannt. Versuche HTML-Parsing...")
+                dfs = pd.read_html(datei_inhalt_string, header=0) # HTML-Tabelle(n) lesen, Header automatisch erkennen
+                if dfs:
+                    df = dfs[0] # Erste Tabelle aus HTML extrahieren (Annahme: es gibt nur eine Tabelle)
+                    st.info(f"HTML-Tabelle erfolgreich gelesen.")
+                else:
+                    fehlermeldung = "HTML-Datei enthält keine Tabellen oder Tabellen konnten nicht geparst werden."
+            else: # Falls keine HTML-Datei, versuche Excel-Parsing
+                engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
+                df = pd.read_excel(uploaded_file, engine=engine, header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
+                st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert, Engine-Info hinzugefügt
         except Exception as e:
-            fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format oder Spaltenüberschrift nicht in Zeile 3. **Engine: '{engine}' wurde verwendet.**" # Fehlermeldung angepasst, Engine-Info hinzugefügt
+            fehlermeldung = f"Fehler beim Lesen der Datei: {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder Spaltenüberschrift nicht in Zeile 3 (Excel). Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, HTML-Parsing erwähnt
     else:
-        fehlermeldung = f"Unerwarteter Dateityp: {dateityp}.  Es werden nur Excel-Dateien für Bestände und offene Bestellungen erwartet." # Fehlermeldung für unerwarteten Dateityp
+        fehlermeldung = f"Unerwarteter Dateityp: {dateityp}.  Es werden nur Excel- und HTML-Dateien für Bestände und offene Bestellungen erwartet." # Fehlermeldung für unerwarteten Dateityp
 
     if fehlermeldung:
         st.error(fehlermeldung)
         return None
 
     if df is not None:
-        st.subheader(f"Vorschau der gelesenen Daten ({dateityp}, erste 5 Zeilen, **Spaltenüberschriften aus Zeile 3**):") # Dateityp und Hinweis auf Zeile 3 in Vorschau anzeigen
+        st.subheader(f"Vorschau der gelesenen Daten ({dateityp}, erste 5 Zeilen, **Spaltenüberschriften aus Datei extrahiert**):") # Dateityp und Hinweis auf Header-Quelle in Vorschau anzeigen
         st.dataframe(df.head())
 
         spaltennamen_neu = st.multiselect(
-            f"Spaltennamen überprüfen und ggf. anpassen ({dateityp}, wähle korrekte Spalten aus, **aus Zeile 3 der Excel-Datei**):", # Dateityp und Hinweis auf Zeile 3 im Label anzeigen
+            f"Spaltennamen überprüfen und ggf. anpassen ({dateityp}, wähle korrekte Spalten aus, **aus der Datei extrahiert**):", # Dateityp und Hinweis auf Header-Quelle im Label anzeigen
             options=df.columns.tolist(),
             default=df.columns.tolist(), # Standardmäßig alle Spalten auswählen
             key=f"spaltenauswahl_{dateityp}_{uploaded_file.name}" # Eindeutiger Key für Multiselect
@@ -75,7 +87,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
 
 @st.cache_data
 def artikel_stammdaten_lesen(uploaded_file):
-    """Liest Artikelstammdaten aus Excel mit datei_inspektion_und_anpassung."""
+    """Liest Artikelstammdaten aus Excel/HTML mit datei_inspektion_und_anpassung."""
     df_bestand = datei_inspektion_und_anpassung(uploaded_file, 'bestaende_excel') # Dateityp angepasst
     if df_bestand is None:
         return None
@@ -96,7 +108,7 @@ def artikel_stammdaten_lesen(uploaded_file):
 
 @st.cache_data
 def offene_bestellungen_lesen(uploaded_file):
-    """Liest offene Bestellungen aus Excel mit datei_inspektion_und_anpassung."""
+    """Liest offene Bestellungen aus Excel/HTML mit datei_inspektion_und_anpassung."""
     return datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_excel') # Dateityp angepasst
 
 
@@ -218,8 +230,8 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_excel_file = st.file_uploader("Bestände Excel-Datei hochladen (Excel, *.xls, *.xlsx, **Spaltenüberschrift in Zeile 3**)", type=["xls", "xlsx"]) # Dateitypen auf .xls und .xlsx erweitert
-    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Excel-Datei hochladen (Excel, *.xls, *.xlsx, **Spaltenüberschrift in Zeile 3**)", type=["xls", "xlsx"]) # Dateitypen auf .xls und .xlsx erweitert
+    bestaende_excel_file = st.file_uploader("Bestände Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Spaltenüberschrift in Zeile 3 falls Excel, Header wird automatisch erkannt falls HTML**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert
+    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Spaltenüberschrift in Zeile 3 falls Excel, Header wird automatisch erkannt falls HTML**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
@@ -252,9 +264,9 @@ def main():
         if not artikelnummern_etiketten and uploaded_image_files:
             st.warning("Bitte validiere oder gib die Artikelnummern aus den Etikettenbildern ein, bevor du die Dateien hochlädst.")
         if not bestaende_excel_file:
-            st.warning("Bitte lade die Bestände Excel-Datei hoch.") # Warnung für Bestände Excel
+            st.warning("Bitte lade die Bestände Datei hoch.") # Warnung für Bestände Datei
         if not offene_bestellungen_excel_file:
-            st.warning("Bitte lade die Offene Bestellungen Excel-Datei hoch.") # Warnung für Offene Bestellungen Excel
+            st.warning("Bitte lade die Offene Bestellungen Datei hoch.") # Warnung für Offene Bestellungen Datei
 
 
 if __name__ == "__main__":
