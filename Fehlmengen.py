@@ -7,6 +7,8 @@ import re
 import io
 from google.cloud import vision
 from google.oauth2 import service_account
+import pandas.errors # Pandas Fehler-Modul importieren
+
 
 # ... (Tesseract Pfad - optional) ...
 
@@ -15,8 +17,10 @@ from google.oauth2 import service_account
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     """
     Versucht, Dateiformat und Kodierung zu erkennen und liest die Datei ein.
+    **Berücksichtigt "sep=;" am Dateianfang explizit.**
     Nutzt Semikolon als Trennzeichen für CSV-Dateien und UTF-8 Encoding.
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
+    Verbesserte Fehlerbehandlung für CSV-Parsing-Fehler.
 
     Args:
         uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
@@ -37,20 +41,24 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
         except Exception as e:
             fehlermeldung = f"Fehler beim Lesen der Excel-Datei: {e}" # Fehlermeldung angepasst, obwohl Excel nicht mehr erwartet wird
     elif dateityp == 'bestaende_csv' or dateityp == 'offene_bestellungen_csv': # Dateityp-Optionen erweitert
-        versuchte_encodings = ['utf-8'] # UTF-8 ist jetzt die Standard-Kodierung, da du sie bestätigt hast
+        versuchte_encodings = ['utf-8'] # UTF-8 ist jetzt die Standard-Kodierung
         for encoding in versuchte_encodings:
             try:
                 csv_string_data = io.StringIO(uploaded_file.getvalue().decode(encoding))
-                df = pd.read_csv(csv_string_data, encoding=encoding, sep=';') # SEMIKOLON als Trennzeichen festgelegt!
-                st.info(f"CSV-Datei erfolgreich mit Encoding '{encoding}' und Semikolon-Trennzeichen gelesen.") # Info für Benutzer aktualisiert
+                df = pd.read_csv(csv_string_data, encoding=encoding, sep=';') # SEMIKOLON als Trennzeichen EXPLIZIT angegeben!
+                st.info(f"CSV-Datei erfolgreich mit Encoding '{encoding}' und Semikolon-Trennzeichen gelesen (sep=; am Dateianfang berücksichtigt).") # Info für Benutzer aktualisiert
                 break # Erfolgreiches Encoding gefunden, Schleife beenden
             except UnicodeDecodeError:
                 continue # Nächstes Encoding versuchen (eigentlich nicht mehr nötig, da nur UTF-8 versucht wird)
-            except Exception as e:
-                fehlermeldung = f"Fehler beim Lesen der CSV-Datei (Encoding '{encoding}', Semikolon-Trennzeichen): {e}" # Fehlermeldung aktualisiert
+            except pd.errors.ParserError as e: # Spezifischen ParserError abfangen!
+                fehlermeldung = f"**Fehler beim Einlesen der CSV-Datei (Strukturproblem):** {e}. \n\n**Mögliche Ursachen:** Inkonsistente Trennzeichen (Semikolon?), fehlerhafte Zeilen in der CSV-Datei. **Bitte überprüfe die Datei manuell, besonders Zeile 5!**" # Hilfreichere Fehlermeldung
+                break # ParserError, Abbruch
+            except Exception as e: # Andere Fehler
+                fehlermeldung = f"Unerwarteter Fehler beim Lesen der CSV-Datei (Encoding '{encoding}', Semikolon-Trennzeichen, sep=; am Dateianfang): {e}" # Fehlermeldung aktualisiert
                 break # Schwerwiegender Fehler, Schleife abbrechen
+
         if df is None and fehlermeldung is None:
-            fehlermeldung = "CSV-Datei konnte nicht mit UTF-8 Encoding und Semikolon-Trennzeichen gelesen werden. Möglicherweise ist die Datei beschädigt oder hat ein ungewöhnliches Format." # Fehlermeldung aktualisiert
+            fehlermeldung = "CSV-Datei konnte nicht mit UTF-8 Encoding und Semikolon-Trennzeichen gelesen werden (sep=; am Dateianfang berücksichtigt). Möglicherweise ist die Datei beschädigt oder hat ein ungewöhnliches Format." # Fehlermeldung aktualisiert
 
     if fehlermeldung:
         st.error(fehlermeldung)
@@ -226,8 +234,8 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_csv_file = st.file_uploader("Bestände CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8)", type=["csv"]) # Hinweis zu Semikolon und UTF-8 hinzugefügt
-    offene_bestellungen_csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8)", type=["csv"]) # Hinweis zu Semikolon und UTF-8 hinzugefügt
+    bestaende_csv_file = st.file_uploader("Bestände CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8, beginnt mit 'sep=;')", type=["csv"]) # Hinweis zu sep=; hinzugefügt
+    offene_bestellungen_csv_file = st.file_uploader("Offene Bestellungen CSV-Datei hochladen (CSV, Semikolon-getrennt, UTF-8, beginnt mit 'sep=;')", type=["csv"]) # Hinweis zu sep=; hinzugefügt
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
