@@ -154,7 +154,8 @@ def artikelnummern_aus_bildern_erkennen(uploaded_files):
         list: Liste der erkannten und validierten Artikelnummern.
     """
     artikelnummern = []
-    artikelnummer_muster = re.compile(r"[A-Z]\d{5}")  # Beispielmuster für Artikelnummern
+    # Artikelnummer beginnt mit A und hat dann fünf Zahlen (z.B. A04607)
+    artikelnummer_muster = re.compile(r"A\d{5}")
 
     for uploaded_file in uploaded_files:
         try:
@@ -167,7 +168,7 @@ def artikelnummern_aus_bildern_erkennen(uploaded_files):
 
             if gefundene_artikelnummern:
                 beste_artikelnummer = gefundene_artikelnummern[0]
-                antwort = st.radio(f"Artikelnummer in **{uploaded_file.name}** erkannt als: **{beste_artikelnummer}**. Korrekt?", ('Ja', 'Nein'), horizontal=True)
+                antwort = st.radio(f"Artikelnummer in **{uploaded_file.name}** erkannt als: **{beste_artikelnummer}**. Korrekt?", ('Ja', 'Nein'), horizontal=True, key=f"radio_{uploaded_file.name}") # Key hinzugefügt
                 if antwort == 'Ja':
                     artikelnummern.append(beste_artikelnummer)
                 else:
