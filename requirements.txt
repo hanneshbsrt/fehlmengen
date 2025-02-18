@@ -1,5 +1,8 @@
 streamlit
 pandas
 openpyxl
+pytesseract
 Pillow
 google-cloud-vision
+google-auth
+xlrd
