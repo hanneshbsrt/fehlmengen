@@ -15,97 +15,97 @@ import pandas.errors # Pandas Fehler-Modul importieren
 
 @st.cache_data
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
-    """
-    Versucht, Dateiformat zu erkennen und liest die Datei ein (Excel oder HTML-Tabelle).
-    **Excel-Dateien werden jetzt ohne Header eingelesen und Spaltennamen manuell zugewiesen (siehe artikel_stammdaten_lesen).**
-    Ignoriert die ersten zwei Zeilen (falls Excel). **(Anzahl der übersprungenen Zeilen konfigurierbar)**
-    Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
-    Erkennt und parst HTML-Tabellen in Dateien.
-    Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).
-    Verbesserte HTML-Erkennung (prüft auf <html>, <!DOCTYPE html> und <TABLE>).
-    Genauere Fehlermeldungen.
-    **Spaltennamenanpassung erfolgt jetzt manuell im Code (für Excel). Für HTML wird Header automatisch erkannt.**
+    """
+    Versucht, Dateiformat zu erkennen und liest die Datei ein (Excel oder HTML-Tabelle).
+    **Excel-Dateien werden jetzt ohne Header eingelesen und Spaltennamen manuell zugewiesen (siehe artikel_stammdaten_lesen).**
+    Ignoriert die ersten zwei Zeilen (falls Excel). **(Anzahl der übersprungenen Zeilen konfigurierbar)**
+    Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
+    Erkennt und parst HTML-Tabellen in Dateien.
+    Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).
+    Verbesserte HTML-Erkennung (prüft auf <html>, <!DOCTYPE html> und <TABLE>).
+    Genauere Fehlermeldungen.
+    **Spaltennamenanpassung erfolgt jetzt manuell im Code (für Excel). Für HTML wird Header automatisch erkannt.**
 
-    Args:
-        uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
-        dateityp (str): Dateityp ('bestaende_excel' oder 'offene_bestellungen_excel').
+    Args:
+        uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
+        dateityp (str): Dateityp ('bestaende_excel' oder 'offene_bestellungen_excel').
 
-    Returns:
-        pandas.DataFrame: DataFrame der eingelesenen Daten oder None bei Fehler.
-    """
-    if uploaded_file is None:
-        return None
+    Returns:
+        pandas.DataFrame: DataFrame der eingelesenen Daten oder None bei Fehler.
+    """
+    if uploaded_file is None:
+        return None
 
-    df = None
-    fehlermeldung = None
+    df = None
+    fehlermeldung = None
 
-    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel/HTML
-        datei_inhalt_string = None
-        versuchte_encodings = ['utf-16-le', 'utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'utf-16', 'utf-16-be'] # Erweiterte Liste der Encodings, UTF-16-LE zuerst
+    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel/HTML
+        datei_inhalt_string = None
+        versuchte_encodings = ['utf-16-le', 'utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'utf-16', 'utf-16-be'] # Erweiterte Liste der Encodings, UTF-16-LE zuerst
 
-        # Versuche zuerst UTF-16-LE mit Fehler-Ignorierung
-        try:
-            datei_inhalt_string = uploaded_file.getvalue().decode('utf-16-le', errors='ignore') # UTF-16-LE mit Fehler-Ignorierung!
-            st.info(f"Dateiinhalt erfolgreich mit Encoding 'utf-16-le' (mit Fehler-Ignorierung) gelesen.") # Info-Meldung für erfolgreiches Encoding (mit Fehler-Ignorierung)
-        except Exception as e:
-            st.warning(f"Encoding 'utf-16-le' (mit Fehler-Ignorierung) fehlgeschlagen. Versuche weitere Encodings...") # Warnung, wenn Encoding fehlgeschlagen (mit Fehler-Ignorierung)
-
-
-        if datei_inhalt_string is None: # Falls UTF-16-LE mit Fehler-Ignorierung fehlschlägt, versuche die anderen Encodings
-            for encoding in versuchte_encodings[1:]: # Starte Schleife ab dem 2. Encoding (utf-8), da utf-16-le schon versucht wurde
-                try:
-                    datei_inhalt_string = uploaded_file.getvalue().decode(encoding) # Dateiinhalt als String lesen, Encoding versuchen
-                    st.info(f"Dateiinhalt erfolgreich mit Encoding '{encoding}' gelesen.") # Info-Meldung für erfolgreiches Encoding
-                    break # Bei Erfolg aus der Schleife ausbrechen
-                except UnicodeDecodeError:
-                    st.warning(f"Encoding '{encoding}' fehlgeschlagen. Versuche nächstes Encoding...") # Warnung, wenn Encoding fehlschlägt
-                    continue # Zum nächsten Encoding übergehen
-
-        if datei_inhalt_string is None: # Wenn alle Encodings fehlschlagen
-            fehlermeldung = f"**FATALER FEHLER: Encoding-Problem!** Fehler beim Lesen der Datei: UnicodeDecodeError.  Keines der folgenden Encodings hat funktioniert: {versuchte_encodings}. \n\nMögliche Ursachen: Datei ist **beschädigt**, **keine reine Textdatei** oder verwendet ein **völlig unbekanntes Encoding**." # Präzisere Fehlermeldung mit Liste der Encodings
-            st.error(fehlermeldung)
-            return None # Fehlerfall, kein DataFrame
+        # Versuche zuerst UTF-16-LE mit Fehler-Ignorierung
+        try:
+            datei_inhalt_string = uploaded_file.getvalue().decode('utf-16-le', errors='ignore') # UTF-16-LE mit Fehler-Ignorierung!
+            st.info(f"Dateiinhalt erfolgreich mit Encoding 'utf-16-le' (mit Fehler-Ignorierung) gelesen.") # Info-Meldung für erfolgreiches Encoding (mit Fehler-Ignorierung)
+        except Exception as e:
+            st.warning(f"Encoding 'utf-16-le' (mit Fehler-Ignorierung) fehlgeschlagen. Versuche weitere Encodings...") # Warnung, wenn Encoding fehlgeschlagen (mit Fehler-Ignorierung)
 
 
-        try: # Jetzt HTML- oder Excel-Parsing versuchen (nach erfolgreichem Encoding)
-            ist_html_datei = False
-            html_start_tags = ["<TABLE", "<HTML", "<!DOCTYPE html>"] # Erweiterte HTML-Erkennung:  prüfe auf <html>, <!DOCTYPE html> und <table>
-            for tag in html_start_tags:
-                if tag in datei_inhalt_string.upper():
-                    ist_html_datei = True
-                    break # Sobald ein HTML-Tag gefunden, ist es eine HTML-Datei
+        if datei_inhalt_string is None: # Falls UTF-16-LE mit Fehler-Ignorierung fehlschlägt, versuche die anderen Encodings
+            for encoding in versuchte_encodings[1:]: # Starte Schleife ab dem 2. Encoding (utf-8), da utf-16-le schon versucht wurde
+                try:
+                    datei_inhalt_string = uploaded_file.getvalue().decode(encoding) # Dateiinhalt als String lesen, Encoding versuchen
+                    st.info(f"Dateiinhalt erfolgreich mit Encoding '{encoding}' gelesen.") # Info-Meldung für erfolgreiches Encoding
+                    break # Bei Erfolg aus der Schleife ausbrechen
+                except UnicodeDecodeError:
+                    st.warning(f"Encoding '{encoding}' fehlgeschlagen. Versuche nächstes Encoding...") # Warnung, wenn Encoding fehlschlägt
+                    continue # Zum nächsten Encoding übergehen
 
-            if ist_html_datei: # HTML-Datei erkannt
-                st.info("Datei als HTML-Tabelle erkannt. Versuche HTML-Parsing...")
-                dfs = pd.read_html(datei_inhalt_string, header=0) # HTML-Tabelle(n) lesen, Header automatisch erkennen
-                if dfs:
-                    df = dfs[0] # Erste Tabelle aus HTML extrahieren (Annahme: es gibt nur eine Tabelle)
-                    st.info(f"HTML-Tabelle erfolgreich gelesen.")
-                else:
-                    fehlermeldung = "**FEHLER beim HTML-Parsing:** HTML-Datei enthält keine Tabellen oder Tabellen konnten nicht geparst werden." # Genauere Fehlermeldung für HTML-Parsing-Fehler
-            else: # Falls keine HTML-Datei, versuche Excel-Parsing
-                engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
-                df = pd.read_excel(uploaded_file, engine=engine, header=None, skiprows=2)  # Kein Header, überspringe 2 Zeilen (oder 3, je nach Bedarf, hier 2 beibehalten)
-                # df.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Geliefert', 'Offen', 'OffenBE']  # Spaltennamen werden jetzt in artikel_stammdaten_lesen zugewiesen!
-                st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', **keine Spaltenüberschriften aus Datei verwendet, manuelle Spaltenzuweisung im Code aktiv**).") # Info für Benutzer aktualisiert, Hinweis auf manuelle Spaltenzuweisung
-        except Exception as e: # Allgemeine Fehler beim Parsing (HTML oder Excel)
-            fehlermeldung_parsing = f"**FEHLER beim Parsen der Datei (nach erfolgreichem Encoding):** {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder **unerwartetes Excel-Format**. Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, Hinweis auf unerwartetes Excel-Format
-            if fehlermeldung: # Falls es schon einen Encoding-Fehler gab, diesen beibehalten, sonst Parsing-Fehler nehmen
-                fehlermeldung = fehlermeldung # Encoding-Fehler behalten
-            else:
-                fehlermeldung = fehlermeldung_parsing # Parsing-Fehler nehmen
-
-            if not fehlermeldung: #  Sicherstellen, dass Fehlermeldung nicht None ist, bevor Error angezeigt wird (sollte jetzt nie None sein)
-                fehlermeldung = "Unbekannter Fehler beim Lesen/Parsen der Datei. Bitte überprüfe die Datei." # Fallback-Fehlermeldung, falls alles andere fehlschlägt
-            st.error(fehlermeldung)
-            return None # Fehlerfall, kein DataFrame
+        if datei_inhalt_string is None: # Wenn alle Encodings fehlschlagen
+            fehlermeldung = f"**FATALER FEHLER: Encoding-Problem!** Fehler beim Lesen der Datei: UnicodeDecodeError.  Keines der folgenden Encodings hat funktioniert: {versuchte_encodings}. \n\nMögliche Ursachen: Datei ist **beschädigt**, **keine reine Textdatei** oder verwendet ein **völlig unbekanntes Encoding**." # Präzisere Fehlermeldung mit Liste der Encodings
+            st.error(fehlermeldung)
+            return None # Fehlerfall, kein DataFrame
 
 
-    if fehlermeldung: #  Fehlermeldung anzeigen, falls gesetzt (Encoding- oder Parsing-Fehler)
-        st.error(fehlermeldung)
-        return None
+        try: # Jetzt HTML- oder Excel-Parsing versuchen (nach erfolgreichem Encoding)
+            ist_html_datei = False
+            html_start_tags = ["<TABLE", "<HTML", "<!DOCTYPE html>"] # Erweiterte HTML-Erkennung:  prüfe auf <html>, <!DOCTYPE html> und <table>
+            for tag in html_start_tags:
+                if tag in datei_inhalt_string.upper():
+                    ist_html_datei = True
+                    break # Sobald ein HTML-Tag gefunden, ist es eine HTML-Datei
 
-    return df # DataFrame ohne Spaltennamen zurückgeben (Spaltennamenanpassung erfolgt in artikel_stammdaten_lesen/offene_bestellungen_lesen)
+            if ist_html_datei: # HTML-Datei erkannt
+                st.info("Datei als HTML-Tabelle erkannt. Versuche HTML-Parsing...")
+                dfs = pd.read_html(datei_inhalt_string, header=0) # HTML-Tabelle(n) lesen, Header automatisch erkennen
+                if dfs:
+                    df = dfs[0] # Erste Tabelle aus HTML extrahieren (Annahme: es gibt nur eine Tabelle)
+                    st.info(f"HTML-Tabelle erfolgreich gelesen.")
+                else:
+                    fehlermeldung = "**FEHLER beim HTML-Parsing:** HTML-Datei enthält keine Tabellen oder Tabellen konnten nicht geparst werden." # Genauere Fehlermeldung für HTML-Parsing-Fehler
+            else: # Falls keine HTML-Datei, versuche Excel-Parsing
+                engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
+                df = pd.read_excel(uploaded_file, engine=engine, header=None, skiprows=2)  # Kein Header, überspringe 2 Zeilen (oder 3, je nach Bedarf, hier 2 beibehalten)
+                # df.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Geliefert', 'Offen', 'OffenBE']  # Spaltennamen werden jetzt in artikel_stammdaten_lesen zugewiesen!
+                st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', **keine Spaltenüberschriften aus Datei verwendet, manuelle Spaltenzuweisung im Code aktiv**).") # Info für Benutzer aktualisiert, Hinweis auf manuelle Spaltenzuweisung
+        except Exception as e: # Allgemeine Fehler beim Parsing (HTML oder Excel)
+            fehlermeldung_parsing = f"**FEHLER beim Parsen der Datei (nach erfolgreichem Encoding):** {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder **unerwartetes Excel-Format**. Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, Hinweis auf unerwartetes Excel-Format
+            if fehlermeldung: # Falls es schon einen Encoding-Fehler gab, diesen beibehalten, sonst Parsing-Fehler nehmen
+                fehlermeldung = fehlermeldung # Encoding-Fehler behalten
+            else:
+                fehlermeldung = fehlermeldung_parsing # Parsing-Fehler nehmen
+
+            if not fehlermeldung:   #  Sicherstellen, dass Fehlermeldung nicht None ist, bevor Error angezeigt wird (sollte jetzt nie None sein)
+                fehlermeldung = "Unbekannter Fehler beim Lesen/Parsen der Datei. Bitte überprüfe die Datei." # Fallback-Fehlermeldung, falls alles andere fehlschlägt
+            st.error(fehlermeldung)
+            return None # Fehlerfall, kein DataFrame
+
+
+    if fehlermeldung:   #  Fehlermeldung anzeigen, falls gesetzt (Encoding- oder Parsing-Fehler)
+        st.error(fehlermeldung)
+        return None
+
+    return df # DataFrame ohne Spaltennamen zurückgeben (Spaltennamenanpassung erfolgt in artikel_stammdaten_lesen/offene_bestellungen_lesen)
 
 
 @st.cache_data
