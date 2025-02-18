@@ -21,7 +21,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     Ignoriert die ersten zwei Zeilen (falls Excel).
     Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
     Erkennt und parst HTML-Tabellen in Dateien.
-    **Probiert eine erweiterte Liste von Encodings (utf-8, utf-8-sig, latin-1, cp1252, utf-16, utf-16-le, utf-16-be) beim Lesen des Dateiinhalts.**
+    **Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).**
     Verbesserte HTML-Erkennung (prüft auf <html>, <!DOCTYPE html> und <TABLE>).
     Genauere Fehlermeldungen.
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
@@ -41,16 +41,25 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
 
     if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel/HTML
         datei_inhalt_string = None
-        versuchte_encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'utf-16', 'utf-16-le', 'utf-16-be'] # Erweiterte Liste der Encodings
+        versuchte_encodings = ['utf-16-le', 'utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'utf-16', 'utf-16-be'] # Erweiterte Liste der Encodings, UTF-16-LE zuerst
 
-        for encoding in versuchte_encodings:
-            try:
-                datei_inhalt_string = uploaded_file.getvalue().decode(encoding) # Dateiinhalt als String lesen, Encoding versuchen
-                st.info(f"Dateiinhalt erfolgreich mit Encoding '{encoding}' gelesen.") # Info-Meldung für erfolgreiches Encoding
-                break # Bei Erfolg aus der Schleife ausbrechen
-            except UnicodeDecodeError:
-                st.warning(f"Encoding '{encoding}' fehlgeschlagen. Versuche nächstes Encoding...") # Warnung, wenn Encoding fehlschlägt
-                continue # Zum nächsten Encoding übergehen
+        # Versuche zuerst UTF-16-LE mit Fehler-Ignorierung
+        try:
+            datei_inhalt_string = uploaded_file.getvalue().decode('utf-16-le', errors='ignore') # UTF-16-LE mit Fehler-Ignorierung!
+            st.info(f"Dateiinhalt erfolgreich mit Encoding 'utf-16-le' (mit Fehler-Ignorierung) gelesen.") # Info-Meldung für erfolgreiches Encoding (mit Fehler-Ignorierung)
+        except Exception as e:
+            st.warning(f"Encoding 'utf-16-le' (mit Fehler-Ignorierung) fehlgeschlagen. Versuche weitere Encodings...") # Warnung, wenn Encoding fehlgeschlagen (mit Fehler-Ignorierung)
+
+
+        if datei_inhalt_string is None: # Falls UTF-16-LE mit Fehler-Ignorierung fehlschlägt, versuche die anderen Encodings
+            for encoding in versuchte_encodings[1:]: # Starte Schleife ab dem 2. Encoding (utf-8), da utf-16-le schon versucht wurde
+                try:
+                    datei_inhalt_string = uploaded_file.getvalue().decode(encoding) # Dateiinhalt als String lesen, Encoding versuchen
+                    st.info(f"Dateiinhalt erfolgreich mit Encoding '{encoding}' gelesen.") # Info-Meldung für erfolgreiches Encoding
+                    break # Bei Erfolg aus der Schleife ausbrechen
+                except UnicodeDecodeError:
+                    st.warning(f"Encoding '{encoding}' fehlgeschlagen. Versuche nächstes Encoding...") # Warnung, wenn Encoding fehlschlägt
+                    continue # Zum nächsten Encoding übergehen
 
         if datei_inhalt_string is None: # Wenn alle Encodings fehlschlagen
             fehlermeldung = f"**FATALER FEHLER: Encoding-Problem!** Fehler beim Lesen der Datei: UnicodeDecodeError.  Keines der folgenden Encodings hat funktioniert: {versuchte_encodings}. \n\nMögliche Ursachen: Datei ist **beschädigt**, **keine reine Textdatei** oder verwendet ein **völlig unbekanntes Encoding**." # Präzisere Fehlermeldung mit Liste der Encodings
