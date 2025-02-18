@@ -46,7 +46,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
         # Versuche zuerst UTF-16-LE mit Fehler-Ignorierung
         try:
             datei_inhalt_string = uploaded_file.getvalue().decode('utf-16-le', errors='ignore') # UTF-16-LE mit Fehler-Ignorierung!
-            st.info(f"Dateiinhalt erfolgreich mit Encoding 'utf-16-le' (mit Fehler-Ignorierung) gelesen.") # Info-Meldung für erfolgreiches Encoding (mit Fehler-Ignorierung)
+            st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
         except Exception as e:
             st.warning(f"Encoding 'utf-16-le' (mit Fehler-Ignorierung) fehlgeschlagen. Versuche weitere Encodings...") # Warnung, wenn Encoding fehlgeschlagen (mit Fehler-Ignorierung)
 
@@ -55,7 +55,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
             for encoding in versuchte_encodings[1:]: # Starte Schleife ab dem 2. Encoding (utf-8), da utf-16-le schon versucht wurde
                 try:
                     datei_inhalt_string = uploaded_file.getvalue().decode(encoding) # Dateiinhalt als String lesen, Encoding versuchen
-                    st.info(f"Dateiinhalt erfolgreich mit Encoding '{encoding}' gelesen.") # Info-Meldung für erfolgreiches Encoding
+                    st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
                     break # Bei Erfolg aus der Schleife ausbrechen
                 except UnicodeDecodeError:
                     st.warning(f"Encoding '{encoding}' fehlgeschlagen. Versuche nächstes Encoding...") # Warnung, wenn Encoding fehlschlägt
@@ -80,14 +80,14 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
                 dfs = pd.read_html(datei_inhalt_string, header=0) # HTML-Tabelle(n) lesen, Header automatisch erkennen
                 if dfs:
                     df = dfs[0] # Erste Tabelle aus HTML extrahieren (Annahme: es gibt nur eine Tabelle)
-                    st.info(f"HTML-Tabelle erfolgreich gelesen.")
+                    st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
                 else:
                     fehlermeldung = "**FEHLER beim HTML-Parsing:** HTML-Datei enthält keine Tabellen oder Tabellen konnten nicht geparst werden." # Genauere Fehlermeldung für HTML-Parsing-Fehler
             else: # Falls keine HTML-Datei, versuche Excel-Parsing
                 engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
                 df = pd.read_excel(uploaded_file, engine=engine, header=None, skiprows=2)  # Kein Header, überspringe 2 Zeilen (oder 3, je nach Bedarf, hier 2 beibehalten)
                 # df.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Geliefert', 'Offen', 'OffenBE']  # Spaltennamen werden jetzt in artikel_stammdaten_lesen zugewiesen!
-                st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', **keine Spaltenüberschriften aus Datei verwendet, manuelle Spaltenzuweisung im Code aktiv**).") # Info für Benutzer aktualisiert, Hinweis auf manuelle Spaltenzuweisung
+                st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
         except Exception as e: # Allgemeine Fehler beim Parsing (HTML oder Excel)
             fehlermeldung_parsing = f"**FEHLER beim Parsen der Datei (nach erfolgreichem Encoding):** {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder **unerwartetes Excel-Format**. Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, Hinweis auf unerwartetes Excel-Format
             if fehlermeldung: # Falls es schon einen Encoding-Fehler gab, diesen beibehalten, sonst Parsing-Fehler nehmen
@@ -240,7 +240,7 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
     for uploaded_file in uploaded_files:
         try:
             img = Image.open(uploaded_file)
-            st.image(img, caption=f"Etikettenbild: {uploaded_file.name}", width=300)
+
 
             image = vision.Image(content=uploaded_file.getvalue())
             response = client.text_detection(image=image)
@@ -252,30 +252,19 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
 
             if gefundene_artikelnummern:
                 beste_artikelnummer = gefundene_artikelnummern[0]
-                # **Änderung: Frage nur nach Korrektur, wenn keine Artikelnummer gefunden wurde oder wenn User "Nein" wählt**
-                # if antwort == 'Ja': # Entferne diese Bedingung
                 artikelnummern.append(beste_artikelnummer)
-                # else: # Dieser else-Block wird jetzt ausgeführt, wenn Artikelnummer gefunden wurde und 'Nein' gewählt wurde (oder wenn keine gefunden wurde)
-                #   manuelle_eingabe = st.text_input(f"Bitte gib die korrekte Artikelnummer für **{uploaded_file.name}** manuell ein:", key=f"manual_input_{uploaded_file.name}")
-                #   if manuelle_eingabe:
-                #       artikelnummern.append(manuelle_eingabe)
+
             else: # **Dieser else-Block wird jetzt ausgeführt, wenn KEINE Artikelnummer gefunden wurde**
+                st.image(img, caption=f"Etikettenbild (Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild nur anzeigen, wenn keine Artikelnummer erkannt wurde
                 manuelle_eingabe = st.text_input(f"Artikelnummer in **{uploaded_file.name}** konnte nicht erkannt werden. Bitte manuell eingeben:", key=f"manual_input_{uploaded_file.name}")
                 if manuelle_eingabe:
                     artikelnummern.append(manuelle_eingabe)
-            if gefundene_artikelnummern: # Frage nach Korrektur, aber nur wenn Artikelnummer gefunden wurde
-                antwort = st.radio(f"Artikelnummer in **{uploaded_file.name}** erkannt als: **{beste_artikelnummer}**. Korrekt?", ('Ja', 'Nein'), horizontal=True, key=f"radio_{uploaded_file.name}")
-                if antwort == 'Nein': # Nur wenn 'Nein' gewählt wird, manuelle Eingabe ermöglichen und vorherige Nummer entfernen, falls fälschlicherweise hinzugefügt
-                    if beste_artikelnummer in artikelnummern: # **Sicherstellen, dass die Nummer noch in der Liste ist, bevor sie entfernt wird (optional, zur Sicherheit)**
-                        artikelnummern.remove(beste_artikelnummer) # **Entferne die fälschlich erkannte Nummer**
-                    manuelle_eingabe = st.text_input(f"Bitte gib die korrekte Artikelnummer für **{uploaded_file.name}** manuell ein:", key=f"manual_input_korrektur_{uploaded_file.name}") # key angepasst
-                    if manuelle_eingabe:
-                        artikelnummern.append(manuelle_eingabe)
 
 
         except Exception as e:
             st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Google Cloud Vision API: {e}")
             st.error(f"Fehlerdetails: {e}")
+            st.image(img, caption=f"Etikettenbild (Fehler bei Erkennung, Manuelle Eingabe): {uploaded_file.name}", width=300) # Bild auch im Fehlerfall anzeigen
             manuelle_eingabe = st.text_input(f"Artikelnummer für **{uploaded_file.name}** manuell eingeben (Fehlerfall):", key=f"manual_input_error_{uploaded_file.name}")
             if manuelle_eingabe:
                 artikelnummern.append(manuelle_eingabe)
@@ -294,7 +283,7 @@ def main():
         artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_gcv(uploaded_image_files)
 
         if artikelnummern_etiketten:
-            st.success("Artikelnummernerkennung abgeschlossen (Google Cloud Vision API verwendet)!")
+            st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
             st.write("Erkannte und validierte Artikelnummern von Etiketten:")
             st.write(artikelnummern_etiketten)
         else:
@@ -312,10 +301,12 @@ def main():
         artikel_stammdaten = artikel_stammdaten_lesen(bestaende_excel_file) # Nutze bestaende_excel_file
         if artikel_stammdaten is not None: # **Prüfen, ob artikel_stammdaten NICHT None ist**
             st.dataframe(artikel_stammdaten) # **DataFrame zur Kontrolle direkt in Streamlit anzeigen**
+            st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
 
 
     if offene_bestellungen_excel_file:
         offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_excel_file) # Nutze offene_bestellungen_excel_file
+        st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
 
 
     if artikel_stammdaten and offene_bestellungen_df is not None and artikelnummern_etiketten:
