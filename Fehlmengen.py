@@ -96,7 +96,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
                 fehlermeldung = fehlermeldung_parsing # Parsing-Fehler nehmen
 
             if not fehlermeldung: #  Sicherstellen, dass Fehlermeldung nicht None ist, bevor Error angezeigt wird (sollte jetzt nie None sein)
-                 fehlermeldung = "Unbekannter Fehler beim Lesen/Parsen der Datei. Bitte überprüfe die Datei." # Fallback-Fehlermeldung, falls alles andere fehlschlägt
+                fehlermeldung = "Unbekannter Fehler beim Lesen/Parsen der Datei. Bitte überprüfe die Datei." # Fallback-Fehlermeldung, falls alles andere fehlschlägt
             st.error(fehlermeldung)
             return None # Fehlerfall, kein DataFrame
 
@@ -118,15 +118,25 @@ def artikel_stammdaten_lesen(uploaded_file):
         return None
 
     # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
-    df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Spalte5', 'Spalte6', 'Spalte7'] # **Manuelle Spaltennamen zuweisen!**  Spaltennamen anpassen, falls nötig!
+    # **WICHTIG:**  Überprüfen Sie nach dem ersten Ausführen mit dieser Funktion
+    # die tatsächliche Struktur des DataFrames `df_bestand` (z.B. `st.dataframe(df_bestand)` in Streamlit ausgeben).
+    # Passen Sie die Spaltennamen in der nächsten Zeile **genau** an die
+    # **tatsächlichen Spaltenüberschriften** der HTML-Tabelle an.
+    # Die hier angegebenen Spaltennamen sind nur ein Beispiel und MÜSSEN möglicherweise angepasst werden!
+    if isinstance(df_bestand, pd.DataFrame): # Prüfen, ob df_bestand ein DataFrame ist, bevor Spalten zugewiesen werden
+        df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Spalte5', 'Spalte6', 'Spalte7'] # **Manuelle Spaltennamen zuweisen!**  Spaltennamen anpassen, falls nötig!
 
-    # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
-    required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
-    missing_columns = [col for col in required_columns if col not in df_bestand.columns]
+        # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
+        required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
+        missing_columns = [col for col in required_columns if col not in df_bestand.columns]
 
-    if missing_columns:
-        st.error(f"**FEHLER: Fehlende Spalten nach manueller Spaltenzuweisung in Bestände-Datei:** {', '.join(missing_columns)}. \n\n**Mögliche Ursachen:** Unerwartetes Dateiformat, falsche Spaltenreihenfolge oder Anzahl an Spalten in der Datei. \n\n**Bitte überprüfe die Spaltenzuweisung im Code in der Funktion `artikel_stammdaten_lesen` und passe sie ggf. an die Datei an.**") # Erweiterte Fehlermeldung mit Hinweis auf Code-Anpassung
+        if missing_columns:
+            st.error(f"**FEHLER: Fehlende Spalten nach manueller Spaltenzuweisung in Bestände-Datei:** {', '.join(missing_columns)}. \n\n**Mögliche Ursachen:** Unerwartetes Dateiformat, falsche Spaltenreihenfolge oder Anzahl an Spalten in der Datei. \n\n**Bitte überprüfe die Spaltenzuweisung im Code in der Funktion `artikel_stammdaten_lesen` und passe sie ggf. an die Datei an.**") # Erweiterte Fehlermeldung mit Hinweis auf Code-Anpassung
+            return None
+    else:
+        st.error("Fehler beim Einlesen der Bestände-Datei. DataFrame ist nicht valide.")
         return None
+
 
     artikel_stammdaten = {}
     for index, row in df_bestand.iterrows():
@@ -146,7 +156,7 @@ def artikel_stammdaten_lesen(uploaded_file):
 def offene_bestellungen_lesen(uploaded_file):
     """Liest offene Bestellungen aus Excel/HTML mit datei_inspektion_und_anpassung.
      **Verwendet manuelle Spaltennamen für Excel-Dateien (ggf. anpassen!).**
-    """
+     """
     df_offene_bestellungen = datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_excel')
     if df_offene_bestellungen is None:
         return None
@@ -275,8 +285,8 @@ def main():
 
 
     st.header("2. Dateien hochladen")
-    bestaende_excel_file = st.file_uploader("Bestände Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
-    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
+    bestaende_excel_file = st.file_uploader("Bestände Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx", "html", "htm"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
+    offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx", "html", "htm"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
