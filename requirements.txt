@@ -6,3 +6,5 @@ Pillow
 google-cloud-vision
 google-auth
 xlrd
+beautifulsoup4
+lxml
