@@ -20,7 +20,8 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     Verwendet Zeile 3 als Spaltenüberschrift (falls Excel) oder erkennt Header automatisch (HTML).
     Ignoriert die ersten zwei Zeilen (falls Excel).
     Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
-    **Erkennt und parst HTML-Tabellen in Dateien.**
+    Erkennt und parst HTML-Tabellen in Dateien.
+    **Probiert verschiedene Encodings (utf-8, latin-1, utf-16-le) beim Lesen des Dateiinhalts.**
     Gibt dem Benutzer die Möglichkeit, Spaltennamen anzupassen.
 
     Args:
@@ -37,8 +38,25 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     fehlermeldung = None
 
     if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel/HTML
-        try:
-            datei_inhalt_string = uploaded_file.getvalue().decode('utf-8') # Dateiinhalt als String lesen (UTF-8 Annahme)
+        datei_inhalt_string = None
+        versuchte_encodings = ['utf-8', 'latin-1', 'utf-16-le'] # Liste der Encodings, die wir ausprobieren werden
+
+        for encoding in versuchte_encodings:
+            try:
+                datei_inhalt_string = uploaded_file.getvalue().decode(encoding) # Dateiinhalt als String lesen, Encoding versuchen
+                st.info(f"Dateiinhalt erfolgreich mit Encoding '{encoding}' gelesen.") # Info-Meldung für erfolgreiches Encoding
+                break # Bei Erfolg aus der Schleife ausbrechen
+            except UnicodeDecodeError:
+                st.warning(f"Encoding '{encoding}' fehlgeschlagen. Versuche nächstes Encoding...") # Warnung, wenn Encoding fehlschlägt
+                continue # Zum nächsten Encoding übergehen
+
+        if datei_inhalt_string is None: # Wenn alle Encodings fehlschlagen
+            fehlermeldung = f"Fehler beim Lesen der Datei: UnicodeDecodeError.  Keines der Encodings ({versuchte_encodings}) hat funktioniert. \n\nMögliche Ursachen: Datei ist beschädigt oder in einem unbekannten Format." # Fehlermeldung für Encoding-Fehler
+            st.error(fehlermeldung)
+            return None # Fehlerfall, kein DataFrame
+
+
+        try: # Jetzt HTML- oder Excel-Parsing versuchen (nach erfolgreichem Encoding)
             if "<TABLE" in datei_inhalt_string.upper() and "<TR>" in datei_inhalt_string.upper() and "<TD>" in datei_inhalt_string.upper(): # HTML-Tabelle erkennen (vereinfacht)
                 st.info("Datei als HTML-Tabelle erkannt. Versuche HTML-Parsing...")
                 dfs = pd.read_html(datei_inhalt_string, header=0) # HTML-Tabelle(n) lesen, Header automatisch erkennen
@@ -51,12 +69,19 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
                 engine = 'xlrd' if uploaded_file.name.lower().endswith('.xls') else 'openpyxl' # Wähle Engine basierend auf Dateiendung
                 df = pd.read_excel(uploaded_file, engine=engine, header=2, skiprows=[0, 1]) # Header Zeile 3 (Index 2), ignoriere Zeilen 1 und 2 (Indizes 0 und 1)
                 st.info(f"Datei als Excel-Datei erkannt. Erfolgreich gelesen (Engine: '{engine}', Spaltenüberschrift in Zeile 3, erste zwei Zeilen ignoriert).") # Info für Benutzer aktualisiert, Engine-Info hinzugefügt
-        except Exception as e:
-            fehlermeldung = f"Fehler beim Lesen der Datei: {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder Spaltenüberschrift nicht in Zeile 3 (Excel). Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, HTML-Parsing erwähnt
-    else:
-        fehlermeldung = f"Unerwarteter Dateityp: {dateityp}.  Es werden nur Excel- und HTML-Dateien für Bestände und offene Bestellungen erwartet." # Fehlermeldung für unerwarteten Dateityp
+        except Exception as e: # Allgemeine Fehler beim Parsing (HTML oder Excel)
+            fehlermeldung_parsing = f"Fehler beim Parsen der Datei (nach erfolgreichem Encoding): {e}. \n\nMögliche Ursachen: Datei ist beschädigt, falsches Format, HTML-Parsing-Fehler oder Spaltenüberschrift nicht in Zeile 3 (Excel). Engine: 'xlrd'/'openpyxl' wurde verwendet (falls Excel-Parsing versucht)." # Fehlermeldung erweitert, Parsing-Fehler
+            if fehlermeldung: # Falls es schon einen Encoding-Fehler gab, diesen beibehalten, sonst Parsing-Fehler nehmen
+                fehlermeldung = fehlermeldung # Encoding-Fehler behalten
+            else:
+                fehlermeldung = fehlermeldung_parsing # Parsing-Fehler nehmen
+                st.error(fehlermeldung)
+            if not fehlermeldung: #  Sicherstellen, dass Fehlermeldung nicht None ist, bevor Error angezeigt wird
+                 st.error(fehlermeldung)
+            return None # Fehlerfall, kein DataFrame
 
-    if fehlermeldung:
+
+    if fehlermeldung: #  Fehlermeldung anzeigen, falls gesetzt (Encoding- oder Parsing-Fehler)
         st.error(fehlermeldung)
         return None
 
