@@ -117,14 +117,20 @@ def artikel_stammdaten_lesen(uploaded_file):
     if df_bestand is None:
         return None
 
-    # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
-    # **WICHTIG:**  Überprüfen Sie nach dem ersten Ausführen mit dieser Funktion
-    # die tatsächliche Struktur des DataFrames `df_bestand` (z.B. `st.dataframe(df_bestand)` in Streamlit ausgeben).
-    # Passen Sie die Spaltennamen in der nächsten Zeile **genau** an die
-    # **tatsächlichen Spaltenüberschriften** der HTML-Tabelle an.
-    # Die hier angegebenen Spaltennamen sind nur ein Beispiel und MÜSSEN möglicherweise angepasst werden!
-    if isinstance(df_bestand, pd.DataFrame): # Prüfen, ob df_bestand ein DataFrame ist, bevor Spalten zugewiesen werden
+    st.write("DataFrame Struktur (vor Spaltennamen-Zuweisung):") # **Debug-Ausgabe:** DataFrame Struktur anzeigen
+    st.dataframe(df_bestand) # **Debug-Ausgabe:** DataFrame anzeigen
+    if isinstance(df_bestand, pd.DataFrame):
+        print(f"DataFrame shape vor Spaltennamen-Zuweisung: {df_bestand.shape}") # Shape im Backend Log ausgeben
+
+        # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
+        # **WICHTIG:**  Überprüfen Sie nach dem ersten Ausführen mit dieser Funktion
+        # die tatsächliche Struktur des DataFrames `df_bestand` (z.B. `st.dataframe(df_bestand)` in Streamlit ausgeben).
+        # Passen Sie die Spaltennamen in der nächsten Zeile **genau** an die
+        # **tatsächlichen Spaltenüberschriften** der HTML-Tabelle an.
+        # Die hier angegebenen Spaltennamen sind nur ein Beispiel und MÜSSEN möglicherweise angepasst werden!
+
         df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME', 'Spalte5', 'Spalte6', 'Spalte7'] # **Manuelle Spaltennamen zuweisen!**  Spaltennamen anpassen, falls nötig!
+
 
         # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
         required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
@@ -293,6 +299,9 @@ def main():
 
     if bestaende_excel_file:
         artikel_stammdaten = artikel_stammdaten_lesen(bestaende_excel_file) # Nutze bestaende_excel_file
+        if artikel_stammdaten is not None: # **Prüfen, ob artikel_stammdaten NICHT None ist**
+            st.dataframe(artikel_stammdaten) # **DataFrame zur Kontrolle direkt in Streamlit anzeigen**
+
 
     if offene_bestellungen_excel_file:
         offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_excel_file) # Nutze offene_bestellungen_excel_file
