@@ -5,7 +5,8 @@ import pytesseract
 from PIL import Image
 import re
 import io  # Für In-Memory-Dateioperationen mit Streamlit
-
+from google.cloud import vision
+from google.oauth2 import service_account
 
 # Pfad zu Tesseract OCR Engine (ggf. anpassen, falls nicht im Systempfad)
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe' # Beispielpfad Windows
@@ -124,7 +125,7 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
             lieferdatum_roh = bestell_zeile['Lieferdatum']
             lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""  # Formatierung und Fehlerbehandlung
             bearbeiter = bestell_zeile['Bearbeiter']
-            belegnummer = bestell_zeile['Belegnr.']
+            belegnummer = bestellung_zeile['Belegnr.']
             ist_bestellt_text = "ja"
         else:
             ist_bestellt_text = "nein"
@@ -143,9 +144,9 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
     return ausgabe_df
 
 
-def artikelnummern_aus_bildern_erkennen(uploaded_files):
+def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
     """
-    Erkennt Artikelnummern aus hochgeladenen Bildern mit OCR und Benutzerinteraktion.
+    Erkennt Artikelnummern aus hochgeladenen Bildern mit Google Cloud Vision API und Benutzerinteraktion.
 
     Args:
         uploaded_files (list): Liste von Streamlit UploadedFile-Objekten (Bilder).
@@ -154,37 +155,48 @@ def artikelnummern_aus_bildern_erkennen(uploaded_files):
         list: Liste der erkannten und validierten Artikelnummern.
     """
     artikelnummern = []
-    # Artikelnummer beginnt mit A und hat dann fünf Zahlen (z.B. A04607)
-    artikelnummer_muster = re.compile(r"A\d{5}")
+    artikelnummer_muster = re.compile(r"A\d{5}")  # Dein Artikelnummernmuster
+
+    # Google Cloud Vision API Client initialisieren, Anmeldeinformationen aus Streamlit Secrets laden
+    credentials = service_account.Credentials.from_service_account_info(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]) # "GOOGLE_APPLICATION_CREDENTIALS" ist der Secret-Name in Streamlit Cloud
+    client = vision.ImageAnnotatorClient(credentials=credentials)
 
     for uploaded_file in uploaded_files:
         try:
             img = Image.open(uploaded_file)
-            st.image(img, caption=f"Etikettenbild: {uploaded_file.name}", width=300) # Bild in Streamlit anzeigen
-            erkannter_text = pytesseract.image_to_string(img, lang='deu')
-            st.write(f"Erkannter Text:\n```\n{erkannter_text}\n```") # Erkannten Text anzeigen
+            st.image(img, caption=f"Etikettenbild: {uploaded_file.name}", width=300)
+
+            # Bilddaten für die Vision API vorbereiten
+            image = vision.Image(content=uploaded_file.getvalue()) # Bilddaten direkt aus UploadedFile
+
+            # Texterkennung mit Google Cloud Vision API
+            response = client.text_detection(image=image)
+            erkannter_text = response.text_annotations[0].description if response.text_annotations else "" # Erkannten Text extrahieren
+
+            st.write(f"Erkannter Text (Google Cloud Vision API):\n```\n{erkannter_text}\n```")
 
             gefundene_artikelnummern = artikelnummer_muster.findall(erkannter_text)
 
             if gefundene_artikelnummern:
                 beste_artikelnummer = gefundene_artikelnummern[0]
-                antwort = st.radio(f"Artikelnummer in **{uploaded_file.name}** erkannt als: **{beste_artikelnummer}**. Korrekt?", ('Ja', 'Nein'), horizontal=True, key=f"radio_{uploaded_file.name}") # Key hinzugefügt
+                antwort = st.radio(f"Artikelnummer in **{uploaded_file.name}** erkannt als: **{beste_artikelnummer}**. Korrekt?", ('Ja', 'Nein'), horizontal=True, key=f"radio_{uploaded_file.name}")
                 if antwort == 'Ja':
                     artikelnummern.append(beste_artikelnummer)
                 else:
                     manuelle_eingabe = st.text_input(f"Bitte gib die korrekte Artikelnummer für **{uploaded_file.name}** manuell ein:", key=f"manual_input_{uploaded_file.name}")
-                    if manuelle_eingabe: # Sicherstellen, dass der Benutzer etwas eingegeben hat
+                    if manuelle_eingabe:
                         artikelnummern.append(manuelle_eingabe)
             else:
                 manuelle_eingabe = st.text_input(f"Artikelnummer in **{uploaded_file.name}** konnte nicht erkannt werden. Bitte manuell eingeben:", key=f"manual_input_{uploaded_file.name}")
-                if manuelle_eingabe: # Sicherstellen, dass der Benutzer etwas eingegeben hat
+                if manuelle_eingabe:
                     artikelnummern.append(manuelle_eingabe)
 
 
         except Exception as e:
-            st.error(f"Fehler beim Verarbeiten von {uploaded_file.name}: {e}")
+            st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Google Cloud Vision API: {e}")
+            st.error(f"Fehlerdetails: {e}") # Zeige detailliertere Fehlermeldung an
             manuelle_eingabe = st.text_input(f"Artikelnummer für **{uploaded_file.name}** manuell eingeben (Fehlerfall):", key=f"manual_input_error_{uploaded_file.name}")
-            if manuelle_eingabe: # Sicherstellen, dass der Benutzer etwas eingegeben hat
+            if manuelle_eingabe:
                 artikelnummern.append(manuelle_eingabe)
 
     return artikelnummern
@@ -198,10 +210,10 @@ def main():
 
     artikelnummern_etiketten = []
     if uploaded_image_files:
-        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen(uploaded_image_files)
+        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_gcv(uploaded_image_files) # Verwende die Google Cloud Vision Funktion!
 
         if artikelnummern_etiketten:
-            st.success("Artikelnummernerkennung abgeschlossen!")
+            st.success("Artikelnummernerkennung abgeschlossen (Google Cloud Vision API verwendet)!")
             st.write("Erkannte und validierte Artikelnummern von Etiketten:")
             st.write(artikelnummern_etiketten)
         else:
