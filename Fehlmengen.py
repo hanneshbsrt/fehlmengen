@@ -174,19 +174,32 @@ def offene_bestellungen_lesen(uploaded_file):
 
 
 def ist_bestellt(artikelnummer, offene_bestellungen_df):
-    """... (Funktion ist_bestellt - Spaltennamen anpassen!) ..."""
-    bestellungen_artikel = offene_bestellungen_df[offene_bestellungen_df['Artikelnr.'] == artikelnummer] # Spaltenname 'Artikelnr.'
-    if bestellungen_artikel.empty:
-        return False, None
+    """Prüft, ob eine Artikelnummer in den offenen Bestellungen vorhanden ist
+     und ob die zugehörige Bestellung noch offen ist (Geliefert-Spalte = 0 für alle Positionen der Bestellung).
+     **Wichtig:** Spaltennamen 'Artikelnr.' und 'Belegnr.' müssen im DataFrame der offenen Bestellungen vorhanden sein!
+     """
+    print(f"Überprüfe Artikelnummer: {artikelnummer}") # Ausgabe der zu überprüfenden Artikelnummer
+    print(f"Spaltennamen im DataFrame: {offene_bestellungen_df.columns}") # Ausgabe der Spaltennamen des DataFrames
 
-    for index, bestellung_artikel_zeile in bestellungen_artikel.iterrows():
-        belegnummer = bestellung_artikel_zeile['Belegnr.']
-        bestellung_df = offene_bestellungen_df[offene_bestellungen_df['Belegnr.'] == belegnummer]
-        alle_geliefert_null = (bestellung_df['Geliefert'] == 0).all()
-        if alle_geliefert_null:
-            return True, bestellung_df
+    bestellungen_artikel = offene_bestellungen_df[offene_bestellungen_df['Artikelnr.'] == artikelnummer] # Spaltenname 'Artikelnr.'
+    print(f"DataFrame nach Filterung auf Artikelnummer:\n{bestellungen_artikel}") # Ausgabe des gefilterten DataFrames
 
-    return False, None
+    if bestellungen_artikel.empty:
+        print("Keine Bestellungen für diese Artikelnummer gefunden.") # Ausgabe, wenn keine Bestellungen gefunden
+        return False, None
+
+    for index, bestellung_artikel_zeile in bestellungen_artikel.iterrows():
+        belegnummer = bestellung_artikel_zeile['Belegnr.']
+        print(f"Überprüfe Belegnummer: {belegnummer}") # Ausgabe der Belegnummer
+        bestellung_df = offene_bestellungen_df[offene_bestellungen_df['Belegnr.'] == belegnummer]
+        print(f"DataFrame nach Filterung auf Belegnummer:\n{bestellung_df}") # Ausgabe des gefilterten DataFrames
+        alle_geliefert_null = (bestellung_df['Geliefert'] == 0).all()
+        print(f"Sind alle 'Geliefert' Werte Null für Belegnummer {belegnummer}? {alle_geliefert_null}") # Ausgabe, ob alle 'Geliefert' Werte Null sind
+        if alle_geliefert_null:
+            return True, bestellung_df
+
+    print("Keine offene Bestellung mit Geliefert = 0 für diese Artikelnummer gefunden.") # Ausgabe, wenn keine offene Bestellung gefunden
+    return False, None
 
 def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellungen_df):
     """... (Funktion excel_tabelle_erstellen - Spaltennamen anpassen!) ..."""
