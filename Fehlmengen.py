@@ -15,24 +15,24 @@ import pandas.errors # Pandas Fehler-Modul importieren
 
 @st.cache_data
 def datei_inspektion_und_anpassung(uploaded_file, dateityp):
-    """
-    Versucht, Dateiformat zu erkennen und liest die Datei ein (Excel oder HTML-Tabelle).
-    **Excel-Dateien werden jetzt ohne Header eingelesen und Spaltennamen manuell zugewiesen (siehe artikel_stammdaten_lesen).**
-    Ignoriert die ersten zwei Zeilen (falls Excel). **(Anzahl der übersprungenen Zeilen konfigurierbar)**
-    Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
-    Erkennt und parst HTML-Tabellen in Dateien.
-    Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).
-    Verbesserte HTML-Erkennung (prüft auf <html>, <!DOCTYPE html> und <TABLE>).
-    Genauere Fehlermeldungen.
-    **Spaltennamenanpassung erfolgt jetzt manuell im Code (für Excel). Für HTML wird Header automatisch erkannt.**
-
-    Args:
-        uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
-        dateityp (str): Dateityp ('bestaende_excel' oder 'offene_bestellungen_excel').
-
-    Returns:
-        pandas.DataFrame: DataFrame der eingelesenen Daten oder None bei Fehler.
-    """
+    # """
+    # Versucht, Dateiformat zu erkennen und liest die Datei ein (Excel oder HTML-Tabelle).
+    # **Excel-Dateien werden jetzt ohne Header eingelesen und Spaltennamen manuell zugewiesen (siehe artikel_stammdaten_lesen).**
+    # Ignoriert die ersten zwei Zeilen (falls Excel). **(Anzahl der übersprungenen Zeilen konfigurierbar)**
+    # Nutzt 'xlrd' Engine für .xls Dateien und 'openpyxl' für .xlsx Dateien (falls Excel).
+    # Erkennt und parst HTML-Tabellen in Dateien.
+    # Versucht zuerst UTF-16-LE Dekodierung mit Fehler-Ignorierung. Dann erweiterte Liste von Encodings (wie zuvor).
+    # Verbesserte HTML-Erkennung (prüft auf <html>, <!DOCTYPE html> und <TABLE>).
+    # Genauere Fehlermeldungen.
+    # **Spaltennamenanpassung erfolgt jetzt manuell im Code (für Excel). Für HTML wird Header automatisch erkannt.**
+    #
+    # Args:
+    #     uploaded_file (streamlit.UploadedFile): Hochgeladene Datei.
+    #     dateityp (str): Dateityp ('bestaende_excel' oder 'offene_bestellungen_excel').
+    #
+    # Returns:
+    #     pandas.DataFrame: DataFrame der eingelesenen Daten oder None bei Fehler.
+    # """
     if uploaded_file is None:
         return None
 
