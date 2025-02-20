@@ -7,7 +7,7 @@ import re
 import io
 from google.cloud import vision
 from google.oauth2 import service_account
-import pandas.errors  # Pandas Fehler-Modul importieren
+import pandas.errors # Pandas Fehler-Modul importieren
 
 
 # ... (Tesseract Pfad - optional) ...
@@ -62,14 +62,14 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
                     continue # Zum nächsten Encoding übergehen
 
         if datei_inhalt_string is None: # Wenn alle Encodings fehlschlagen
-            fehlermeldung = f"**FATALER FEHLER: Encoding-Problem!** Fehler beim Lesen der Datei: UnicodeDecodeError. Keines der folgenden Encodings hat funktioniert: {versuchte_encodings}. \n\nMögliche Ursachen: Datei ist **beschädigt**, **keine reine Textdatei** oder verwendet ein **völlig unbekanntes Encoding**." # Präzisere Fehlermeldung mit Liste der Encodings
+            fehlermeldung = f"**FATALER FEHLER: Encoding-Problem!** Fehler beim Lesen der Datei: UnicodeDecodeError.  Keines der folgenden Encodings hat funktioniert: {versuchte_encodings}. \n\nMögliche Ursachen: Datei ist **beschädigt**, **keine reine Textdatei** oder verwendet ein **völlig unbekanntes Encoding**." # Präzisere Fehlermeldung mit Liste der Encodings
             st.error(fehlermeldung)
             return None # Fehlerfall, kein DataFrame
 
 
         try: # Jetzt HTML- oder Excel-Parsing versuchen (nach erfolgreichem Encoding)
             ist_html_datei = False
-            html_start_tags = ["<TABLE", "<HTML", "<!DOCTYPE html>"] # Erweiterte HTML-Erkennung: prüfe auf <html>, <!DOCTYPE html> und <table>
+            html_start_tags = ["<TABLE", "<HTML", "<!DOCTYPE html>"] # Erweiterte HTML-Erkennung:  prüfe auf <html>, <!DOCTYPE html> und <table>
             for tag in html_start_tags:
                 if tag in datei_inhalt_string.upper():
                     ist_html_datei = True
@@ -122,23 +122,23 @@ def artikel_stammdaten_lesen(uploaded_file):
     if isinstance(df_bestand, pd.DataFrame):
         print(f"DataFrame shape vor Spaltennamen-Zuweisung: {df_bestand.shape}") # Shape im Backend Log ausgeben
 
-    # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
-    # **WICHTIG:**  Überprüfen Sie nach dem ersten Ausführen mit dieser Funktion
-    # die tatsächliche Struktur des DataFrames `df_bestand` (z.B. `st.dataframe(df_bestand)` in Streamlit ausgeben).
-    # Passen Sie die Spaltennamen in der nächsten Zeile **genau** an die
-    # **tatsächlichen Spaltenüberschriften** der HTML-Tabelle an.
-    # Die hier angegebenen Spaltennamen sind nur ein Beispiel und MÜSSEN möglicherweise angepasst werden!
+        # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
+        # **WICHTIG:**  Überprüfen Sie nach dem ersten Ausführen mit dieser Funktion
+        # die tatsächliche Struktur des DataFrames `df_bestand` (z.B. `st.dataframe(df_bestand)` in Streamlit ausgeben).
+        # Passen Sie die Spaltennamen in der nächsten Zeile **genau** an die
+        # **tatsächlichen Spaltenüberschriften** der HTML-Tabelle an.
+        # Die hier angegebenen Spaltennamen sind nur ein Beispiel und MÜSSEN möglicherweise angepasst werden!
 
-    df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME'] # **Reduzierte Spaltennamen (testweise)!**
+        df_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME'] # **Reduzierte Spaltennamen (testweise)!**
 
 
-    # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
-    required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
-    missing_columns = [col for col in required_columns if col not in df_bestand.columns]
+        # Überprüfe, ob die erforderlichen Spalten vorhanden sind (NACH manueller Zuweisung!)
+        required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
+        missing_columns = [col for col in required_columns if col not in df_bestand.columns]
 
-    if missing_columns:
-        st.error(f"**FEHLER: Fehlende Spalten nach manueller Spaltenzuweisung in Bestände-Datei:** {', '.join(missing_columns)}. \n\n**Mögliche Ursachen:** Unerwartetes Dateiformat, falsche Spaltenreihenfolge oder Anzahl an Spalten in der Datei. \n\n**Bitte überprüfe die Spaltenzuweisung im Code in der Funktion `artikel_stammdaten_lesen` und passe sie ggf. an die Datei an.**") # Erweiterte Fehlermeldung mit Hinweis auf Code-Anpassung
-        return None
+        if missing_columns:
+            st.error(f"**FEHLER: Fehlende Spalten nach manueller Spaltenzuweisung in Bestände-Datei:** {', '.join(missing_columns)}. \n\n**Mögliche Ursachen:** Unerwartetes Dateiformat, falsche Spaltenreihenfolge oder Anzahl an Spalten in der Datei. \n\n**Bitte überprüfe die Spaltenzuweisung im Code in der Funktion `artikel_stammdaten_lesen` und passe sie ggf. an die Datei an.**") # Erweiterte Fehlermeldung mit Hinweis auf Code-Anpassung
+            return None
     else:
         st.error("Fehler beim Einlesen der Bestände-Datei. DataFrame ist nicht valide.")
         return None
@@ -163,44 +163,26 @@ def offene_bestellungen_lesen(uploaded_file):
     """Liest offene Bestellungen aus Excel/HTML mit datei_inspektion_und_anpassung.
      **Verwendet manuelle Spaltennamen für Excel-Dateien (ggf. anpassen!).**
      """
-    st.write("Funktion offene_bestellungen_lesen wurde aufgerufen") # Debugging - Funktionsaufruf
     df_offene_bestellungen = datei_inspektion_und_anpassung(uploaded_file, 'offene_bestellungen_excel')
     if df_offene_bestellungen is None:
-        st.write("datei_inspektion_und_anpassung hat None zurückgegeben!") # Debugging - Fehlerfall
         return None
-
-    st.write("Datentypen des DataFrames (Offene Bestellungen):") # Debugging
-    st.write(df_offene_bestellungen.dtypes) # Debugging
-    st.write("Erste Zeilen des DataFrames (Offene Bestellungen):") # Debugging
-    st.dataframe(df_offene_bestellungen.head()) # Debugging
-
 
     # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in Datei)
     df_offene_bestellungen.columns = ['Belegnr.', 'Datum', 'Kurzbezeichnung', 'Bearbeiter', 'Artikelnr.', 'Lieferdatum', 'ME', 'Menge', 'Geliefert', 'Offen', 'OffenBE'] # **Manuelle Spaltennamen zuweisen!** Spaltennamen ggf. anpassen!
-
-    # Datentyp-Konvertierungen explizit machen (nach Spaltenbenennung!) # Debugging - Datentyp Konvertierungen
-    df_offene_bestellungen['Datum'] = pd.to_datetime(df_offene_bestellungen['Datum'], format='%d.%m.%Y', errors='ignore') # Format an dein Datumsformat anpassen! # Debugging - Datentyp Konvertierungen
-    for col in ['Menge', 'Geliefert', 'Offen', 'OffenBE']: # Numerische Spalten # Debugging - Datentyp Konvertierungen
-        df_offene_bestellungen[col] = pd.to_numeric(df_offene_bestellungen[col], errors='coerce').fillna(0) # 'coerce' setzt Fehlerwerte auf NaN, fillna(0) ersetzt NaN durch 0 # Debugging - Datentyp Konvertierungen
-
 
     return df_offene_bestellungen # DataFrame mit manuell zugewiesenen Spaltennamen zurückgeben
 
 
 def ist_bestellt(artikelnummer, offene_bestellungen_df):
     """... (Funktion ist_bestellt - Spaltennamen anpassen!) ..."""
-    st.write(f"Prüfe Artikelnummer in offenen Bestellungen: {artikelnummer}") # Debugging
     bestellungen_artikel = offene_bestellungen_df[offene_bestellungen_df['Artikelnr.'] == artikelnummer] # Spaltenname 'Artikelnr.'
-    st.write(f"Anzahl Bestellungen für Artikelnummer gefunden: {len(bestellungen_artikel)}") # Debugging
     if bestellungen_artikel.empty:
         return False, None
 
     for index, bestellung_artikel_zeile in bestellungen_artikel.iterrows():
         belegnummer = bestellung_artikel_zeile['Belegnr.']
-        st.write(f"Prüfe Belegnummer: {belegnummer}") # Debugging
         bestellung_df = offene_bestellungen_df[offene_bestellungen_df['Belegnr.'] == belegnummer]
         alle_geliefert_null = (bestellung_df['Geliefert'] == 0).all()
-        st.write(f"Alle Positionen 'Geliefert' == 0 für Belegnummer {belegnummer}: {alle_geliefert_null}") # Debugging
         if alle_geliefert_null:
             return True, bestellung_df
 
@@ -264,7 +246,7 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
             response = client.text_detection(image=image)
             erkannter_text = response.text_annotations[0].description if response.text_annotations else ""
 
-            st.write(f"Erkannter Text (Google Cloud Vision API):\n`\n{erkannter_text}\n`")
+            st.write(f"Erkannter Text (Google Cloud Vision API):\n```\n{erkannter_text}\n```")
 
             gefundene_artikelnummern = artikelnummer_muster.findall(erkannter_text)
 
@@ -324,14 +306,7 @@ def main():
 
     if offene_bestellungen_excel_file:
         offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_excel_file) # Nutze offene_bestellungen_excel_file
-        st.success("Offene Bestellungen erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
-
-        st.write("Ergebnis von offene_bestellungen_lesen (direkt nach Aufruf):") # Debugging
-        st.write(offene_bestellungen_df) # Debugging - DataFrame oder None ausgeben
-
-        if offene_bestellungen_df is not None: # Stelle sicher, dass df nicht None ist, bevor .head() # Debugging - Bedingung hinzugefügt
-            st.write("Erste Zeilen von offene_bestellungen_df (zur Prüfung von Artikelnr. und Belegnr.):") # Debugging
-            st.dataframe(offene_bestellungen_df.head()) # Debugging
+        st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
 
 
     if artikel_stammdaten and offene_bestellungen_df is not None and artikelnummern_etiketten:
