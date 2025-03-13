@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageFilter
 import re
 import io
 import pandas.errors # Pandas Fehler-Modul importieren
@@ -231,6 +231,7 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
 def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
     """
     Erkennt Artikelnummern aus Bildern von Etiketten mit Tesseract OCR.
+    **Neu:** Integriert grundlegende Bildvorverarbeitung zur Verbesserung der Erkennung.
     Extrahiert Artikelnummern, die dem Muster 'A\d{5}' entsprechen.
     Falls keine Artikelnummer erkannt wird, wird das Bild zur manuellen Eingabe angezeigt.
     """
@@ -240,9 +241,19 @@ def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
     for uploaded_file in uploaded_files:
         try:
             img = Image.open(uploaded_file)
-            erkannter_text = pytesseract.image_to_string(img) # Text mit Tesseract erkennen
 
-            st.write(f"Erkannter Text (Tesseract OCR):\n```\n{erkannter_text}\n```") # Zeige erkannten Text in Streamlit an
+            # **Bildvorverarbeitungsschritte (angepasst):**
+            img_gray = img.convert('L') # Graustufenkonvertierung
+            img_kontrast = img_gray.point(lambda p: p * 1.5) # Kontrasterhöhung (Faktor 1.5 als Beispiel)
+            img_binarisiert = img_kontrast.point(lambda p: 0 if p < 120 else 255) # Binärisierung (Schwellwert 120 als Beispiel)
+            img_geschärft = img_binarisiert.filter(ImageFilter.SHARPEN) # Schärfen
+
+            # **Optional: Verarbeitetes Bild in Streamlit anzeigen (für Debugging)**
+            # st.image(img_geschärft, caption=f"Verarbeitetes Etikettenbild: {uploaded_file.name}", width=300)
+
+            erkannter_text = pytesseract.image_to_string(img_geschärft, config='-l deu') # OCR auf dem **vorverarbeiteten Bild** mit deutscher Sprache
+
+            st.write(f"Erkannter Text (Tesseract OCR nach Filterung):\n```\n{erkannter_text}\n```") # Zeige erkannten Text in Streamlit an
 
             gefundene_artikelnummern = artikelnummer_muster.findall(erkannter_text)
 
@@ -258,7 +269,7 @@ def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
 
 
         except Exception as e:
-            st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Tesseract OCR: {e}")
+            st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Tesseract OCR (mit Filterung): {e}")
             st.error(f"Fehlerdetails: {e}")
             st.image(img, caption=f"Etikettenbild (Fehler bei Erkennung, Manuelle Eingabe): {uploaded_file.name}", width=300) # Bild auch im Fehlerfall anzeigen
             manuelle_eingabe = st.text_input(f"Artikelnummer für **{uploaded_file.name}** manuell eingeben (Fehlerfall):", key=f"manual_input_error_{uploaded_file.name}")
@@ -276,7 +287,7 @@ def main():
 
     artikelnummern_etiketten = []
     if uploaded_image_files:
-        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files) # Verwende Tesseract-Funktion
+        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files) # Verwende Tesseract-Funktion mit Bildfilterung
 
         if artikelnummern_etiketten:
             st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
