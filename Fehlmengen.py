@@ -253,8 +253,8 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
             # Annahme: Erste Zeile der Bestellung enthält relevante Daten (Menge, Lieferdatum, etc.)
             bestell_zeile = bestellung_daten.iloc[0]
             menge_roh = bestell_zeile['Menge'] # Menge aus Bestellungsdaten
-            me = bestell_zeile['ME'] # Mengeneinheit aus Bestellungsdaten
-            menge = f"{menge_roh} {me}" if pd.notnull(menge_roh) and pd.notnull(me) else "" # Kombinieren mit ME, falls beides vorhanden
+            me_bestellung = bestell_zeile['ME'] # Mengeneinheit aus Bestellungsdaten **(NEU: Eigene Variable für Bestell-ME)**
+            menge = f"{menge_roh} {me_bestellung}" if pd.notnull(menge_roh) and pd.notnull(me_bestellung) else "" # Kombinieren mit ME aus Bestellung
             lieferdatum_roh = bestell_zeile['Lieferdatum']
             lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""
             bearbeiter = bestell_zeile['Bearbeiter']
@@ -292,7 +292,7 @@ def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files, artikel_stammd
             img = Image.open(uploaded_file)
             erkannter_text = pytesseract.image_to_string(img) # Text mit Tesseract erkennen
 
-            st.write(f"Erkannter Text (Tesseract OCR):\n```\n{erkannter_text}\n```") # Zeige erkannten Text in Streamlit an
+            # st.write(f"Erkannter Text (Tesseract OCR):\n```\n{erkannter_text}\n```") # **ENTFERNT: Zeige erkannten Text NICHT mehr an**
 
             gefundene_artikelnummern = artikelnummer_muster.findall(erkannter_text)
 
@@ -300,7 +300,7 @@ def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files, artikel_stammd
                 beste_artikelnummer = gefundene_artikelnummern[0]
                 if beste_artikelnummer in artikel_stammdaten: # **Validierung gegen Artikelstammdaten!**
                     artikelnummern.append(beste_artikelnummer)
-                    st.success(f"Artikelnummer '{beste_artikelnummer}' erkannt und in Bestände-Datei gefunden.") # Erfolgsmeldung mit Validierung
+                    # st.success(f"Artikelnummer '{beste_artikelnummer}' erkannt und in Bestände-Datei gefunden.") # **ENTFERNT: Erfolgsmeldung NICHT mehr anzeigen**
                 else:
                     st.warning(f"Artikelnummer '{beste_artikelnummer}' erkannt, aber **nicht** in Bestände-Datei gefunden. Manuelle Prüfung empfohlen.") # Warnung, wenn nicht in Stammdaten
                     st.image(img, caption=f"Etikettenbild (Artikelnummer nicht in Bestände-Datei, Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild anzeigen
