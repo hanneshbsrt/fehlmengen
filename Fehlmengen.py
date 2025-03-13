@@ -277,11 +277,12 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
     return ausgabe_df
 
 
-def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
+def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files, artikel_stammdaten): # artikel_stammdaten als Parameter hinzugefügt
     """
-    Erkennt Artikelnummern aus Bildern von Etiketten mit Tesseract OCR.
+    Erkennt Artikelnummern aus Bildern von Etiketten mit Tesseract OCR und validiert gegen Artikelstammdaten.
     Extrahiert Artikelnummern, die dem Muster 'A\d{5}' entsprechen.
-    Falls keine Artikelnummer erkannt wird, wird das Bild zur manuellen Eingabe angezeigt.
+    Prüft, ob erkannte Artikelnummern in den Artikelstammdaten vorhanden sind.
+    Falls keine validierte Artikelnummer erkannt wird, wird das Bild zur manuellen Eingabe angezeigt.
     """
     artikelnummern = []
     artikelnummer_muster = re.compile(r"A\d{5}")  # Dein Artikelnummernmuster
@@ -297,10 +298,19 @@ def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
 
             if gefundene_artikelnummern:
                 beste_artikelnummer = gefundene_artikelnummern[0]
-                artikelnummern.append(beste_artikelnummer)
+                if beste_artikelnummer in artikel_stammdaten: # **Validierung gegen Artikelstammdaten!**
+                    artikelnummern.append(beste_artikelnummer)
+                    st.success(f"Artikelnummer '{beste_artikelnummer}' erkannt und in Bestände-Datei gefunden.") # Erfolgsmeldung mit Validierung
+                else:
+                    st.warning(f"Artikelnummer '{beste_artikelnummer}' erkannt, aber **nicht** in Bestände-Datei gefunden. Manuelle Prüfung empfohlen.") # Warnung, wenn nicht in Stammdaten
+                    st.image(img, caption=f"Etikettenbild (Artikelnummer nicht in Bestände-Datei, Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild anzeigen
+                    manuelle_eingabe = st.text_input(f"Bitte validiere oder korrigiere Artikelnummer für **{uploaded_file.name}** (nicht in Bestände-Datei gefunden):", key=f"manual_input_validation_{uploaded_file.name}", value=beste_artikelnummer) # Manuelle Eingabe mit vorausgefülltem Wert
+                    if manuelle_eingabe:
+                        artikelnummern.append(manuelle_eingabe)
+
 
             else: # Dieser else-Block wird jetzt ausgeführt, wenn KEINE Artikelnummer gefunden wurde
-                st.image(img, caption=f"Etikettenbild (Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild nur anzeigen, wenn keine Artikelnummer erkannt wurde
+                st.image(img, caption=f"Etikettenbild (Keine Artikelnummer erkannt, Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild nur anzeigen, wenn keine Artikelnummer erkannt wurde
                 manuelle_eingabe = st.text_input(f"Artikelnummer in **{uploaded_file.name}** konnte nicht erkannt werden. Bitte manuell eingeben:", key=f"manual_input_{uploaded_file.name}")
                 if manuelle_eingabe:
                     artikelnummern.append(manuelle_eingabe)
@@ -324,15 +334,6 @@ def main():
     uploaded_image_files = st.file_uploader("Etikettenbilder hochladen", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
     artikelnummern_etiketten = []
-    if uploaded_image_files:
-        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files) # Verwende Tesseract-Funktion
-
-        if artikelnummern_etiketten:
-            st.success("Artikelnummern von Etiketten erfolgreich erkannt und übernommen.")
-            st.write("Erkannte und validierte Artikelnummern von Etiketten:")
-            st.write(artikelnummern_etiketten)
-        else:
-            st.warning("Keine Artikelnummern von den Etiketten extrahiert.")
 
 
     st.header("2. Dateien hochladen")
@@ -350,6 +351,14 @@ def main():
         if artikel_stammdaten is not None: # **Prüfen, ob artikel_stammdaten NICHT None ist**
             st.dataframe(artikel_stammdaten) # **DataFrame zur Kontrolle direkt in Streamlit anzeigen**
             st.success("Bestände Datei erfolgreich geladen und verarbeitet.")
+            if uploaded_image_files: # **OCR-Erkennung erst starten, wenn Bestände-Datei geladen**
+                artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files, artikel_stammdaten) # Verwende Tesseract-Funktion MIT Artikelstammdaten
+                if artikelnummern_etiketten:
+                    st.success("Artikelnummern von Etiketten erfolgreich erkannt und übernommen.")
+                    st.write("Erkannte und validierte Artikelnummern von Etiketten:")
+                    st.write(artikelnummern_etiketten)
+                else:
+                    st.warning("Keine Artikelnummern von den Etiketten extrahiert.")
 
 
     if offene_bestellungen_excel_file:
