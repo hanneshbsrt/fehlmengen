@@ -5,12 +5,11 @@ import pytesseract
 from PIL import Image
 import re
 import io
-from google.cloud import vision
-from google.oauth2 import service_account
 import pandas.errors # Pandas Fehler-Modul importieren
 
 
-# ... (Tesseract Pfad - optional) ...
+# Tesseract Pfad (optional, anpassen wenn Tesseract nicht im Systempfad ist)
+# pytesseract.pytesseract.tesseract_cmd = r'Pfad/zu/tesseract.exe'
 
 
 @st.cache_data
@@ -95,13 +94,13 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
             else:
                 fehlermeldung = fehlermeldung_parsing # Parsing-Fehler nehmen
 
-            if not fehlermeldung:   #  Sicherstellen, dass Fehlermeldung nicht None ist, bevor Error angezeigt wird (sollte jetzt nie None sein)
+            if not fehlermeldung:     #  Sicherstellen, dass Fehlermeldung nicht None ist, bevor Error angezeigt wird (sollte jetzt nie None sein)
                 fehlermeldung = "Unbekannter Fehler beim Lesen/Parsen der Datei. Bitte überprüfe die Datei." # Fallback-Fehlermeldung, falls alles andere fehlschlägt
             st.error(fehlermeldung)
             return None # Fehlerfall, kein DataFrame
 
 
-    if fehlermeldung:   #  Fehlermeldung anzeigen, falls gesetzt (Encoding- oder Parsing-Fehler)
+    if fehlermeldung:     #  Fehlermeldung anzeigen, falls gesetzt (Encoding- oder Parsing-Fehler)
         st.error(fehlermeldung)
         return None
 
@@ -229,24 +228,21 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
     return ausgabe_df
 
 
-def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
-    """... (Funktion artikelnummern_aus_bildern_erkennen_gcv - unverändert) ..."""
+def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
+    """
+    Erkennt Artikelnummern aus Bildern von Etiketten mit Tesseract OCR.
+    Extrahiert Artikelnummern, die dem Muster 'A\d{5}' entsprechen.
+    Falls keine Artikelnummer erkannt wird, wird das Bild zur manuellen Eingabe angezeigt.
+    """
     artikelnummern = []
     artikelnummer_muster = re.compile(r"A\d{5}")  # Dein Artikelnummernmuster
-
-    credentials = service_account.Credentials.from_service_account_info(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"])
-    client = vision.ImageAnnotatorClient(credentials=credentials)
 
     for uploaded_file in uploaded_files:
         try:
             img = Image.open(uploaded_file)
+            erkannter_text = pytesseract.image_to_string(img) # Text mit Tesseract erkennen
 
-
-            image = vision.Image(content=uploaded_file.getvalue())
-            response = client.text_detection(image=image)
-            erkannter_text = response.text_annotations[0].description if response.text_annotations else ""
-
-            st.write(f"Erkannter Text (Google Cloud Vision API):\n```\n{erkannter_text}\n```")
+            st.write(f"Erkannter Text (Tesseract OCR):\n```\n{erkannter_text}\n```") # Zeige erkannten Text in Streamlit an
 
             gefundene_artikelnummern = artikelnummer_muster.findall(erkannter_text)
 
@@ -254,7 +250,7 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
                 beste_artikelnummer = gefundene_artikelnummern[0]
                 artikelnummern.append(beste_artikelnummer)
 
-            else: # **Dieser else-Block wird jetzt ausgeführt, wenn KEINE Artikelnummer gefunden wurde**
+            else: # Dieser else-Block wird jetzt ausgeführt, wenn KEINE Artikelnummer gefunden wurde
                 st.image(img, caption=f"Etikettenbild (Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild nur anzeigen, wenn keine Artikelnummer erkannt wurde
                 manuelle_eingabe = st.text_input(f"Artikelnummer in **{uploaded_file.name}** konnte nicht erkannt werden. Bitte manuell eingeben:", key=f"manual_input_{uploaded_file.name}")
                 if manuelle_eingabe:
@@ -262,7 +258,7 @@ def artikelnummern_aus_bildern_erkennen_gcv(uploaded_files):
 
 
         except Exception as e:
-            st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Google Cloud Vision API: {e}")
+            st.error(f"Fehler beim Verarbeiten von {uploaded_file.name} mit Tesseract OCR: {e}")
             st.error(f"Fehlerdetails: {e}")
             st.image(img, caption=f"Etikettenbild (Fehler bei Erkennung, Manuelle Eingabe): {uploaded_file.name}", width=300) # Bild auch im Fehlerfall anzeigen
             manuelle_eingabe = st.text_input(f"Artikelnummer für **{uploaded_file.name}** manuell eingeben (Fehlerfall):", key=f"manual_input_error_{uploaded_file.name}")
@@ -280,7 +276,7 @@ def main():
 
     artikelnummern_etiketten = []
     if uploaded_image_files:
-        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_gcv(uploaded_image_files)
+        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files) # Verwende Tesseract-Funktion
 
         if artikelnummern_etiketten:
             st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
