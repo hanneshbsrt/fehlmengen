@@ -38,7 +38,7 @@ def datei_inspektion_und_anpassung(uploaded_file, dateityp):
     df = None
     fehlermeldung = None
 
-    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel' or dateityp == 'ersatz_bestand_excel': # Dateityp-Optionen für Excel/HTML
+    if dateityp == 'bestaende_excel' or dateityp == 'offene_bestellungen_excel': # Dateityp-Optionen für Excel/HTML
         datei_inhalt_string = None
         versuchte_encodings = ['utf-16-le', 'utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'utf-16', 'utf-16-be'] # Erweiterte Liste der Encodings, UTF-16-LE zuerst
 
@@ -116,10 +116,10 @@ def artikel_stammdaten_lesen(uploaded_file):
     if df_bestand is None:
         return None
 
-    st.write("DataFrame Struktur (vor Spaltennamen-Zuweisung - Bestände Datei):") # **Debug-Ausgabe:** DataFrame Struktur anzeigen
+    st.write("DataFrame Struktur (vor Spaltennamen-Zuweisung):") # **Debug-Ausgabe:** DataFrame Struktur anzeigen
     st.dataframe(df_bestand) # **Debug-Ausgabe:** DataFrame anzeigen
     if isinstance(df_bestand, pd.DataFrame):
-        print(f"DataFrame shape vor Spaltennamen-Zuweisung - Bestände Datei: {df_bestand.shape}") # Shape im Backend Log ausgeben
+        print(f"DataFrame shape vor Spaltennamen-Zuweisung: {df_bestand.shape}") # Shape im Backend Log ausgeben
 
         # Manuelle Spaltenzuweisung für Excel (unabhängig vom Header in der Datei)
         # **WICHTIG:**  Überprüfen Sie nach dem ersten Ausführen mit dieser Funktion
@@ -152,47 +152,9 @@ def artikel_stammdaten_lesen(uploaded_file):
         bestand_gesamt = f"{bestand_menge} {bestand_einheit}"
         artikel_stammdaten[artikelnummer] = {
             "name": artikel_name,
-            "bestand": bestand_gesamt,
-        "me": bestand_einheit # Mengeneinheit hinzufügen
+            "bestand": bestand_gesamt
         }
     return artikel_stammdaten
-
-@st.cache_data
-def ersatz_bestand_lesen(uploaded_file):
-    """Liest Ersatz-Bestandsdaten aus Excel/HTML mit datei_inspektion_und_anpassung.
-    **Verwendet manuelle Spaltennamen für Excel-Dateien und prüft auf erforderliche Spalten.**
-    """
-    df_ersatz_bestand = datei_inspektion_und_anpassung(uploaded_file, 'ersatz_bestand_excel')
-    if df_ersatz_bestand is None:
-        return None
-
-    st.write("DataFrame Struktur (vor Spaltennamen-Zuweisung - Ersatz-Bestände Datei):") # **Debug-Ausgabe:** DataFrame Struktur anzeigen
-    st.dataframe(df_ersatz_bestand) # **Debug-Ausgabe:** DataFrame anzeigen
-    if isinstance(df_ersatz_bestand, pd.DataFrame):
-        print(f"DataFrame shape vor Spaltennamen-Zuweisung - Ersatz-Bestände Datei: {df_ersatz_bestand.shape}") # Shape im Backend Log ausgeben
-
-        df_ersatz_bestand.columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
-
-        required_columns = ['Artikel', 'Kurzbezeichnung', 'Bestand', 'ME']
-        missing_columns = [col for col in required_columns if col not in df_ersatz_bestand.columns]
-
-        if missing_columns:
-            st.error(f"**FEHLER: Fehlende Spalten nach manueller Spaltenzuweisung in Ersatz-Bestände-Datei:** {', '.join(missing_columns)}. \n\n**Mögliche Ursachen:** Unerwartetes Dateiformat, falsche Spaltenreihenfolge oder Anzahl an Spalten in der Datei. \n\n**Bitte überprüfe die Spaltenzuweisung im Code in der Funktion `ersatz_bestand_lesen` und passe sie ggf. an die Datei an.**")
-            return None
-    else:
-        st.error("Fehler beim Einlesen der Ersatz-Bestände-Datei. DataFrame ist nicht valide.")
-        return None
-
-    ersatz_artikel_bestand = {}
-    for index, row in df_ersatz_bestand.iterrows():
-        artikelnummer = str(row['Artikel'])
-        bestand_menge = str(row['Bestand'])
-        bestand_einheit = row['ME']
-        ersatz_artikel_bestand[artikelnummer] = {
-            "bestand": bestand_menge,
-            "me": bestand_einheit
-        }
-    return ersatz_artikel_bestand
 
 
 @st.cache_data
@@ -225,36 +187,25 @@ def ist_bestellt(artikelnummer, offene_bestellungen_df):
 
     return False, None
 
-def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellungen_df, ersatz_artikel_bestand=None):
+def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellungen_df):
     """... (Funktion excel_tabelle_erstellen - Spaltennamen anpassen!) ..."""
     ausgabe_daten = []
     for artikelnummer in artikelnummern:
         stammdaten = artikel_stammdaten.get(artikelnummer)
         if stammdaten:
             name = stammdaten['name']
-            bestand_gesamt = stammdaten['bestand']
-            bestand_einheit_original = stammdaten['me'] # Originale Mengeneinheit speichern
+            bestand = stammdaten['bestand']
         else:
             name = "Artikelname nicht gefunden"
-            bestand_gesamt = "Bestand nicht gefunden"
-            bestand_einheit_original = ""
-
-        # Prüfe auf Ersatz-Bestand und Mengeneinheit
-        if ersatz_artikel_bestand and artikelnummer in ersatz_artikel_bestand:
-            ersatz_daten = ersatz_artikel_bestand[artikelnummer]
-            bestand_gesamt = f"{ersatz_daten['bestand']} {ersatz_daten['me']}" # Ersetze Bestand und ME mit Daten aus Ersatzbestand-Datei
-            bestand_einheit_anzeige = ersatz_daten['me'] # Für die Anzeige der Einheit in der Tabelle
-        else:
-            # **WICHTIG:** Wenn kein Ersatzbestand gefunden wird, werden die originalen Bestandsdaten (inkl. Mengeneinheit) aus der "Bestände.xlsx" Datei verwendet.
-            bestand_einheit_anzeige = bestand_einheit_original # Verwende originale Einheit, falls kein Ersatzbestand
+            bestand = "Bestand nicht gefunden"
 
         bestellt, bestellung_daten = ist_bestellt(artikelnummer, offene_bestellungen_df)
         if bestellt and bestellung_daten is not None and not bestellung_daten.empty:
             # Annahme: Erste Zeile der Bestellung enthält relevante Daten (Menge, Lieferdatum, etc.)
             bestell_zeile = bestellung_daten.iloc[0]
             menge_roh = bestell_zeile['Menge'] # Menge aus Bestellungsdaten
-            me_bestellung = bestell_zeile['ME'] # Mengeneinheit aus Bestellungsdaten **(NEU: Eigene Variable für Bestell-ME)**
-            menge = f"{menge_roh} {me_bestellung}" if pd.notnull(menge_roh) and pd.notnull(me_bestellung) else "" # Kombinieren mit ME aus Bestellung
+            me = bestell_zeile['ME'] # Mengeneinheit aus Bestellungsdaten
+            menge = f"{menge_roh} {me}" if pd.notnull(menge_roh) and pd.notnull(me) else "" # Kombinieren mit ME, falls beides vorhanden
             lieferdatum_roh = bestell_zeile['Lieferdatum']
             lieferdatum = pd.to_datetime(lieferdatum_roh, format='%d.%m.%Y').strftime('%d.%m.%Y') if isinstance(lieferdatum_roh, str) else lieferdatum_roh.strftime('%d.%m.%Y') if pd.notnull(lieferdatum_roh) else ""
             bearbeiter = bestell_zeile['Bearbeiter']
@@ -268,21 +219,20 @@ def excel_tabelle_erstellen(artikelnummern, artikel_stammdaten, offene_bestellun
             belegnummer = ""
 
         ausgabe_daten.append([
-            artikelnummer, name, bestand_gesamt, bestand_einheit_anzeige, ist_bestellt_text, menge, lieferdatum, bearbeiter, belegnummer # bestand_einheit_anzeige hinzugefügt
+            artikelnummer, name, bestand, ist_bestellt_text, menge, lieferdatum, bearbeiter, belegnummer
         ])
 
     ausgabe_df = pd.DataFrame(ausgabe_daten, columns=[
-        "Art.Nr.", "Name", "Bestand", "ME", "Bestellt?", "Menge", "Lieferdatum", "Bearbeiter", "Belegnummer" # "ME" Spalte hinzugefügt
+        "Art.Nr.", "Name", "Bestand", "Bestellt?", "Menge", "Lieferdatum", "Bearbeiter", "Belegnummer"
     ])
     return ausgabe_df
 
 
-def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files, artikel_stammdaten): # artikel_stammdaten als Parameter hinzugefügt
+def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files):
     """
-    Erkennt Artikelnummern aus Bildern von Etiketten mit Tesseract OCR und validiert gegen Artikelstammdaten.
+    Erkennt Artikelnummern aus Bildern von Etiketten mit Tesseract OCR.
     Extrahiert Artikelnummern, die dem Muster 'A\d{5}' entsprechen.
-    Prüft, ob erkannte Artikelnummern in den Artikelstammdaten vorhanden sind.
-    Falls keine validierte Artikelnummer erkannt wird, wird das Bild zur manuellen Eingabe angezeigt.
+    Falls keine Artikelnummer erkannt wird, wird das Bild zur manuellen Eingabe angezeigt.
     """
     artikelnummern = []
     artikelnummer_muster = re.compile(r"A\d{5}")  # Dein Artikelnummernmuster
@@ -292,25 +242,16 @@ def artikelnummern_aus_bildern_erkennen_tesseract(uploaded_files, artikel_stammd
             img = Image.open(uploaded_file)
             erkannter_text = pytesseract.image_to_string(img) # Text mit Tesseract erkennen
 
-            # st.write(f"Erkannter Text (Tesseract OCR):\n```\n{erkannter_text}\n```") # **ENTFERNT: Zeige erkannten Text NICHT mehr an**
+            st.write(f"Erkannter Text (Tesseract OCR):\n```\n{erkannter_text}\n```") # Zeige erkannten Text in Streamlit an
 
             gefundene_artikelnummern = artikelnummer_muster.findall(erkannter_text)
 
             if gefundene_artikelnummern:
                 beste_artikelnummer = gefundene_artikelnummern[0]
-                if beste_artikelnummer in artikel_stammdaten: # **Validierung gegen Artikelstammdaten!**
-                    artikelnummern.append(beste_artikelnummer)
-                    # st.success(f"Artikelnummer '{beste_artikelnummer}' erkannt und in Bestände-Datei gefunden.") # **ENTFERNT: Erfolgsmeldung NICHT mehr anzeigen**
-                else:
-                    st.warning(f"Artikelnummer '{beste_artikelnummer}' erkannt, aber **nicht** in Bestände-Datei gefunden. Manuelle Prüfung empfohlen.") # Warnung, wenn nicht in Stammdaten
-                    st.image(img, caption=f"Etikettenbild (Artikelnummer nicht in Bestände-Datei, Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild anzeigen
-                    manuelle_eingabe = st.text_input(f"Bitte validiere oder korrigiere Artikelnummer für **{uploaded_file.name}** (nicht in Bestände-Datei gefunden):", key=f"manual_input_validation_{uploaded_file.name}", value=beste_artikelnummer) # Manuelle Eingabe mit vorausgefülltem Wert
-                    if manuelle_eingabe:
-                        artikelnummern.append(manuelle_eingabe)
-
+                artikelnummern.append(beste_artikelnummer)
 
             else: # Dieser else-Block wird jetzt ausgeführt, wenn KEINE Artikelnummer gefunden wurde
-                st.image(img, caption=f"Etikettenbild (Keine Artikelnummer erkannt, Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild nur anzeigen, wenn keine Artikelnummer erkannt wurde
+                st.image(img, caption=f"Etikettenbild (Manuelle Prüfung): {uploaded_file.name}", width=300) # Bild nur anzeigen, wenn keine Artikelnummer erkannt wurde
                 manuelle_eingabe = st.text_input(f"Artikelnummer in **{uploaded_file.name}** konnte nicht erkannt werden. Bitte manuell eingeben:", key=f"manual_input_{uploaded_file.name}")
                 if manuelle_eingabe:
                     artikelnummern.append(manuelle_eingabe)
@@ -334,46 +275,38 @@ def main():
     uploaded_image_files = st.file_uploader("Etikettenbilder hochladen", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
     artikelnummern_etiketten = []
+    if uploaded_image_files:
+        artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files) # Verwende Tesseract-Funktion
+
+        if artikelnummern_etiketten:
+            st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
+            st.write("Erkannte und validierte Artikelnummern von Etiketten:")
+            st.write(artikelnummern_etiketten)
+        else:
+            st.warning("Keine Artikelnummern von den Etiketten extrahiert.")
 
 
     st.header("2. Dateien hochladen")
     bestaende_excel_file = st.file_uploader("Bestände Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx", "html", "htm"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
     offene_bestellungen_excel_file = st.file_uploader("Offene Bestellungen Datei hochladen (Excel *.xls, *.xlsx, oder HTML-Tabelle *.xls, **Excel: Erste 2 Zeilen ignoriert, Spaltennamen manuell im Code anpassen! HTML: Header wird automatisch erkannt.**)", type=["xls", "xlsx", "html", "htm"]) # Dateitypen und Beschreibung für HTML erweitert, Hinweis für Excel-Spaltennamen
-    ersatz_bestand_excel_file = st.file_uploader("Ersatz-Bestände Datei hochladen (XLSX Datei mit Spalten 'Artikel', 'Kurzbezeichnung', 'Bestand', 'ME')", type=["xlsx"]) # Neuer File Uploader für die Ersatz-Bestände Datei, nur XLSX
-
 
     artikel_stammdaten = None # Initialisieren außerhalb der if-Bedingung
     offene_bestellungen_df = None # Initialisieren außerhalb der if-Bedingung
-    ersatz_artikel_bestand = None # Initialisieren für Ersatz-Bestand
 
     if bestaende_excel_file:
         artikel_stammdaten = artikel_stammdaten_lesen(bestaende_excel_file) # Nutze bestaende_excel_file
         if artikel_stammdaten is not None: # **Prüfen, ob artikel_stammdaten NICHT None ist**
             st.dataframe(artikel_stammdaten) # **DataFrame zur Kontrolle direkt in Streamlit anzeigen**
-            st.success("Bestände Datei erfolgreich geladen und verarbeitet.")
-            if uploaded_image_files: # **OCR-Erkennung erst starten, wenn Bestände-Datei geladen**
-                artikelnummern_etiketten = artikelnummern_aus_bildern_erkennen_tesseract(uploaded_image_files, artikel_stammdaten) # Verwende Tesseract-Funktion MIT Artikelstammdaten
-                if artikelnummern_etiketten:
-                    st.success("Artikelnummern von Etiketten erfolgreich erkannt und übernommen.")
-                    st.write("Erkannte und validierte Artikelnummern von Etiketten:")
-                    st.write(artikelnummern_etiketten)
-                else:
-                    st.warning("Keine Artikelnummern von den Etiketten extrahiert.")
+            st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
 
 
     if offene_bestellungen_excel_file:
         offene_bestellungen_df = offene_bestellungen_lesen(offene_bestellungen_excel_file) # Nutze offene_bestellungen_excel_file
-        st.success("Datei der offenen Bestellungen erfolgreich geladen und verarbeitet.")
-
-    if ersatz_bestand_excel_file:
-        ersatz_artikel_bestand = ersatz_bestand_lesen(ersatz_bestand_excel_file) # Nutze ersatz_bestand_excel_file
-        if ersatz_artikel_bestand is not None:
-            st.dataframe(ersatz_artikel_bestand) # DataFrame zur Kontrolle anzeigen
-            st.success("Ersatz-Bestände Datei erfolgreich geladen und verarbeitet.")
+        st.success("Erfolgreich geladen.") # Vereinfachte Erfolgsmeldung
 
 
     if artikel_stammdaten and offene_bestellungen_df is not None and artikelnummern_etiketten:
-        ausgabe_df = excel_tabelle_erstellen(artikelnummern_etiketten, artikel_stammdaten, offene_bestellungen_df, ersatz_artikel_bestand) # Ersatzbestand-Daten übergeben
+        ausgabe_df = excel_tabelle_erstellen(artikelnummern_etiketten, artikel_stammdaten, offene_bestellungen_df)
 
         st.header("3. Ergebnis-Tabelle")
         st.dataframe(ausgabe_df)
@@ -389,15 +322,13 @@ def main():
             file_name="lager_bestand_liste.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-    elif artikelnummern_etiketten or bestaende_excel_file or offene_bestellungen_excel_file or ersatz_bestand_excel_file: # Warnungen angepasst, Ersatzdatei hinzugefügt
+    elif artikelnummern_etiketten or bestaende_excel_file or offene_bestellungen_excel_file: # Warnungen angepasst
         if not artikelnummern_etiketten and uploaded_image_files:
             st.warning("Bitte validiere oder gib die Artikelnummern aus den Etikettenbildern ein, bevor du die Dateien hochlädst.")
         if not bestaende_excel_file:
             st.warning("Bitte lade die Bestände Datei hoch.") # Warnung für Bestände Datei
         if not offene_bestellungen_excel_file:
             st.warning("Bitte lade die Offene Bestellungen Datei hoch.") # Warnung für Offene Bestellungen Datei
-        if not ersatz_bestand_excel_file:
-            st.warning("Bitte lade die Ersatz-Bestände Datei hoch.") # Warnung für Ersatz-Bestände Datei
 
 
 if __name__ == "__main__":
